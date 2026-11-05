@@ -16,7 +16,7 @@ import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
 import { shareMemory } from './memory.ts';
 import { data, flush, newId, samePath, save } from './store.ts';
-import { closeTab, createTab, events, killAll, markSeen, restartTab, resumePending, tabs } from './tabs.ts';
+import { EFFORTS, closeTab, createTab, events, killAll, markSeen, restartTab, resumePending, tabs } from './tabs.ts';
 import { respawn, update, VERSION, watchForUpdates } from './update.ts';
 import { fileEvents, keepWatching } from './watch.ts';
 
@@ -670,6 +670,7 @@ const server = http.createServer(async (req, res) => {
       if (!data.projects.some((p) => p.id === body.projectId)) return json(res, 400, { error: 'project' });
       const kind = body.kind === 'shell' ? 'shell' : body.kind === 'agy' ? 'agy' : 'claude';
       const model = kind === 'shell' ? undefined : await validModel(kind, body.model);
+      const effort = kind === 'claude' && typeof body.effort === 'string' && EFFORTS.has(body.effort) ? body.effort : undefined;
       if (kind === 'agy' && !AGY_AVAILABLE) return json(res, 400, { error: 'Die Antigravity-CLI (agy) ist nicht installiert.' });
       const tab = createTab(
         body.projectId,
@@ -678,13 +679,23 @@ const server = http.createServer(async (req, res) => {
         typeof body.prompt === 'string' && body.prompt.trim() ? body.prompt : undefined,
         // Only accounts that really exist on this computer.
         accounts.find((a) => typeof body.account === 'string' && a.dir.toLowerCase() === body.account.toLowerCase())?.dir,
-        model ? { model } : {},
+        { ...(model ? { model } : {}), ...(effort ? { effort } : {}) },
       );
       return json(res, 200, { id: tab.rec.id });
     }
     if (parts[1] === 'tabs' && parts[2]) {
       const id = parts[2];
       if (!tabs.has(id)) return json(res, 404, { error: 'not found' });
+      if (parts[3] === 'effort' && method === 'POST') {
+        const level = String((await readBody(req)).effort ?? '');
+        if (!EFFORTS.has(level)) return json(res, 400, { error: 'Diese Stufe gibt es nicht.' });
+        try {
+          await tabs.get(id)!.setEffort(level);
+        } catch (err) {
+          return json(res, 409, { error: (err as Error).message });
+        }
+        return json(res, 200, { ok: true });
+      }
       if (parts[3] === 'model' && method === 'POST') {
         const tab = tabs.get(id)!;
         const provider = tab.rec.kind === 'agy' ? 'agy' : 'claude';

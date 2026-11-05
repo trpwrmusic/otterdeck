@@ -49,6 +49,25 @@ function variantFor(row: { variants: { effort: string; m: ModelChoice }[] }, eff
   return [...row.variants].sort((a, b) => Math.abs(order.indexOf(a.effort.toLowerCase()) - want) - Math.abs(order.indexOf(b.effort.toLowerCase()) - want))[0];
 }
 const EFFORT_NOTE = 'Gilt für alle Modelle. Gründlich ist bei schweren Aufgaben besser, aber langsamer.';
+const CLAUDE_EFFORT_NOTE = 'Standard nimmt die Einstellung des Kontos. Gründlich ist bei schweren Aufgaben besser, aber langsamer.';
+
+/** The "Nachdenken" switch. With `withDefault` a "Standard" field (= the account's setting, value null) comes first. */
+function EffortBar({ value, onChange, withDefault, note }: { value: string | null; onChange: (e: string | null) => void; withDefault?: boolean; note: string }) {
+  const options: (string | null)[] = withDefault ? [null, ...EFFORTS] : EFFORTS;
+  return (
+    <div className="effort-bar">
+      <div className="effort-head">Nachdenken</div>
+      <div className="seg">
+        {options.map((e) => (
+          <button key={e ?? 'std'} className={value === e ? 'on' : ''} onClick={() => onChange(e)}>
+            {e ? EFFORT[e] : 'Standard'}
+          </button>
+        ))}
+      </div>
+      <div className="model-note effort-note">{note}</div>
+    </div>
+  );
+}
 
 export interface NewChatChoice {
   provider: Provider;
@@ -56,6 +75,8 @@ export interface NewChatChoice {
   model: string | null;
   /** Claude account dir (null = default account). */
   account?: string | null;
+  /** Claude's thinking effort (null = the account's setting). */
+  effort?: string | null;
 }
 
 export function choiceLabel(c: NewChatChoice, models: Record<Provider, ModelChoice[]> | null) {
@@ -69,11 +90,16 @@ function ModelList({
   models,
   current,
   onPick,
+  claudeEffort,
+  onClaudeEffort,
 }: {
   providers: Provider[];
   models: Record<Provider, ModelChoice[]> | null;
   current: NewChatChoice | null;
   onPick: (c: NewChatChoice) => void;
+  /** Claude's effort switch: shown when onClaudeEffort is given. */
+  claudeEffort?: string | null;
+  onClaudeEffort?: (e: string | null) => void;
 }) {
   // One "think" level for all Antigravity models (remembered); starts at the current model's level.
   const currentEffort = current?.provider === 'agy' ? effortOf(models?.agy.find((m) => m.id === current.model)?.label ?? '') : null;
@@ -88,24 +114,13 @@ function ModelList({
               <ProviderIcon provider={p} size={13} /> {PROVIDER_LABEL[p]}
             </div>
           )}
-          <button className={`model-row${current?.provider === p && !current.model ? ' sel' : ''}`} onClick={() => onPick({ provider: p, model: null })}>
+          {p === 'claude' && onClaudeEffort && <EffortBar withDefault value={claudeEffort ?? null} onChange={onClaudeEffort} note={CLAUDE_EFFORT_NOTE} />}
+          {p === 'agy' && <EffortBar value={effort} onChange={(e) => setEffort(e ?? 'medium')} note={EFFORT_NOTE} />}
+          <button className={`model-row${current?.provider === p && !current.model ? ' sel' : ''}`} onClick={() => onPick({ provider: p, model: null, effort: p === 'claude' ? claudeEffort ?? null : undefined })}>
             <span className="model-name">Standard</span>
             <span className="model-hint">{p === 'claude' ? 'Voreinstellung von Claude Code' : 'Voreinstellung von Antigravity'}</span>
             {current?.provider === p && !current.model && <Check size={14} className="model-check" />}
           </button>
-          {p === 'agy' && (
-            <div className="effort-bar">
-              <div className="effort-head">Nachdenken</div>
-              <div className="seg">
-                {EFFORTS.map((e) => (
-                  <button key={e} className={effort === e ? 'on' : ''} onClick={() => setEffort(e)}>
-                    {EFFORT[e]}
-                  </button>
-                ))}
-              </div>
-              <div className="model-note effort-note">{EFFORT_NOTE}</div>
-            </div>
-          )}
           {p === 'agy'
             ? grouped(models.agy).map((row) => {
                 const v = variantFor(row, effort);
@@ -119,7 +134,7 @@ function ModelList({
                 );
               })
             : models.claude.map((m) => (
-                <button key={m.id} className={`model-row${current?.model === m.id ? ' sel' : ''}`} onClick={() => onPick({ provider: 'claude', model: m.id })}>
+                <button key={m.id} className={`model-row${current?.model === m.id ? ' sel' : ''}`} onClick={() => onPick({ provider: 'claude', model: m.id, effort: claudeEffort ?? null })}>
                   <span className="model-name">{m.label}</span>
                   {m.hint && <span className="model-hint">{m.hint}</span>}
                   {current?.model === m.id && <Check size={14} className="model-check" />}
@@ -179,6 +194,7 @@ export function NewChatButton({
   const c: NewChatChoice = choice.provider === 'agy' && !agy ? { provider: 'claude', model: null, account: null } : choice;
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<ProviderOption | null>(null);
+  const [claudeEffort, setClaudeEffort] = usePersisted<string | null>('otter.claudeEffort', null);
 
   const options: ProviderOption[] = [
     ...(accounts.length ? accounts : [{ dir: '', label: 'Standard', email: null, isDefault: true }]).map((a) => ({
@@ -206,7 +222,7 @@ export function NewChatButton({
     setOpen(false);
     onStart(next);
   };
-  const text = [current.label, c.model ? choiceLabel(c, models) : null].filter(Boolean).join(' · ');
+  const text = [current.label, c.model ? choiceLabel(c, models) : null, c.provider === 'claude' && c.effort ? EFFORT[c.effort] : null].filter(Boolean).join(' · ');
 
   return (
     <div className={`newchat${big ? ' big' : ''}`}>
@@ -252,6 +268,8 @@ export function NewChatButton({
                     models={models}
                     current={c.provider === step.provider && (c.account ?? null) === step.account ? c : null}
                     onPick={(next) => start({ ...next, account: step.account })}
+                    claudeEffort={claudeEffort}
+                    onClaudeEffort={setClaudeEffort}
                   />
                 </div>
               </>
@@ -277,6 +295,16 @@ export function ModelSwitchList({ tab, onDone }: { tab: TabView; onDone?: () => 
         providers={[provider]}
         models={models}
         current={{ provider, model: tab.modelId }}
+        claudeEffort={tab.effort}
+        onClaudeEffort={
+          provider === 'claude'
+            ? (e) => {
+                if (busy || !e) return;
+                setError(null);
+                api.setEffort(tab.id, e).catch((err) => setError(err.message));
+              }
+            : undefined
+        }
         onPick={(next) => {
           if (busy || !next.model) return onDone?.();
           setError(null);
@@ -404,6 +432,23 @@ export function ComposerSheet({ tab }: { tab: TabView }) {
                   </button>
                 ))}
               </div>
+            )}
+            {provider === 'claude' && (
+              <>
+                <div className="sheet-sub">Nachdenken</div>
+                <div className="seg">
+                  {EFFORTS.map((e) => (
+                    <button
+                      key={e}
+                      className={tab.effort === e ? 'on' : ''}
+                      disabled={busy}
+                      onClick={() => api.setEffort(tab.id, e).catch((err) => setError(err.message))}
+                    >
+                      {EFFORT[e]}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
             {pick !== tab.modelId && (
               <button className="copy-btn primary sheet-apply" disabled={busy || !pick} onClick={applyModel}>

@@ -8,6 +8,36 @@ import type { WebSocket } from 'ws';
 import type { ChatServerMsg, PermissionMode, PromptView, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
 import { CLAUDE_BIN, CLAUDE_TOKEN_FILE, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, IS_WIN, PORT, SERVER_MODE, SHELL_BIN, UPLOAD_DIR } from './config.ts';
 
+/** Claude Code's effort levels Otterdeck offers. */
+export const EFFORTS = new Set(['low', 'medium', 'high']);
+
+/** Puts effortLevel (top level and per model) back to how it was before /effort wrote it. */
+function restoreEffortSettings(file: string, before: any) {
+  if (!before) return;
+  let now: any;
+  try {
+    now = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return;
+  }
+  const out = { ...now };
+  if (before.effortLevel === undefined) delete out.effortLevel;
+  else out.effortLevel = before.effortLevel;
+  if (now.modelSettings && typeof now.modelSettings === 'object') {
+    const ms: any = {};
+    for (const [model, cfg] of Object.entries<any>(now.modelSettings)) {
+      const prev = before.modelSettings?.[model];
+      const next = { ...cfg };
+      if (prev?.effortLevel === undefined) delete next.effortLevel;
+      else next.effortLevel = prev.effortLevel;
+      if (Object.keys(next).length || prev) ms[model] = next;
+    }
+    if (Object.keys(ms).length || before.modelSettings) out.modelSettings = ms;
+    else delete out.modelSettings;
+  }
+  if (JSON.stringify(out) !== JSON.stringify(now)) fs.writeFileSync(file, JSON.stringify(out, null, 2) + '\n');
+}
+
 // node-pty has no Linux build without a compiler; there the prebuilt fork takes over.
 const PTY_FALLBACK = '@homebridge/node-pty-prebuilt-multiarch';
 const pty: typeof Pty = await import('node-pty')
@@ -91,6 +121,27 @@ class Tab {
     return this.rec.kind === 'claude' || this.rec.kind === 'agy';
   }
   startedAt = 0;
+  /** Claude only: how long it thinks. /effort in the running session, --effort on the next start. */
+  async setEffort(level: string) {
+    if (this.rec.kind !== 'claude' || !EFFORTS.has(level)) return false;
+    if (this.status === 'working' || this.status === 'waiting') throw new Error('Erst wenn die Sitzung nicht arbeitet.');
+    this.rec.effort = level;
+    save();
+    if (this.proc) {
+      // /effort also saves the level as the account's default for new sessions. Otterdeck changes
+      // only this chat, so the account's settings go back to what they were.
+      const file = path.join(this.rec.account || this.project?.account || DEFAULT_CLAUDE_DIR, 'settings.json');
+      let before: any = null;
+      try {
+        before = JSON.parse(fs.readFileSync(file, 'utf8'));
+      } catch {}
+      await this.type('/effort ' + level);
+      setTimeout(() => restoreEffortSettings(file, before), 2500);
+    }
+    changed();
+    return true;
+  }
+
   /** Model as the CLI shows it (Claude: status line, agy: footer). */
   modelLabel: string | null = null;
 
@@ -227,6 +278,7 @@ class Tab {
       mode: this.agent ? this.mode : null,
       model: this.agent ? this.modelLabel : null,
       modelId: this.rec.model ?? null,
+      effort: this.rec.kind === 'claude' ? this.rec.effort ?? null : null,
       lastPrompt: this.lastPrompt,
       lastMessage: this.lastMessage,
       unseen: this.unseen,
@@ -275,6 +327,7 @@ class Tab {
       const mode = this.rec.mode === 'bypass' ? 'bypassPermissions' : this.rec.mode;
       if (mode && /^(default|acceptEdits|plan|auto|bypassPermissions)$/.test(mode)) args.push('--permission-mode', mode);
       if (this.rec.model) args.push('--model', this.rec.model);
+      if (this.rec.effort && EFFORTS.has(this.rec.effort)) args.push('--effort', this.rec.effort);
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
       if (resume) args.push('--resume', resume);
       // A first message (e.g. review comments) starts the conversation right away.
@@ -755,7 +808,7 @@ export function createTab(
   resume?: string,
   prompt?: string,
   account?: string,
-  extra: Pick<TabRecord, 'mode' | 'setupToken' | 'model'> = {},
+  extra: Pick<TabRecord, 'mode' | 'setupToken' | 'model' | 'effort'> = {},
 ) {
   const rec: TabRecord = { id: newId(), projectId, kind, createdAt: Date.now(), ...extra };
   if (kind === 'claude' && account) rec.account = account;

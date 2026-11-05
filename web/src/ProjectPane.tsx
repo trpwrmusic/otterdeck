@@ -92,8 +92,8 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
   // The header shows the account of the chat you're looking at, else the one new chats get.
   const shownAccount = multi ? (current?.kind === 'claude' ? accountOf(current.account) : null) ?? projectDefault : null;
 
-  const open = async (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string, model?: string | null) => {
-    const { id } = await api.newTab(project.id, kind, resume, undefined, account, model);
+  const open = async (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string, model?: string | null, effort?: string | null) => {
+    const { id } = await api.newTab(project.id, kind, resume, undefined, account, model, effort);
     onActivate(id);
   };
 
@@ -183,7 +183,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
           <button className="btn small" onClick={() => open('shell')} title="Shell öffnen (Strg+Umschalt+^)">
             <SquareTerminal size={15} /> Shell
           </button>
-          <NewChatButton agy={!!agy} accounts={accounts} onStart={(c) => open(c.provider, undefined, c.account ?? undefined, c.model)} />
+          <NewChatButton agy={!!agy} accounts={accounts} onStart={(c) => open(c.provider, undefined, c.account ?? undefined, c.model, c.effort)} />
           {accountMenu && (
             <ContextMenu
               x={accountMenu.x}
@@ -343,7 +343,7 @@ function StartPage({
 }: {
   project: ProjectView;
   accounts: AccountView[];
-  onOpen: (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string, model?: string | null) => void;
+  onOpen: (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string, model?: string | null, effort?: string | null) => void;
   agy?: boolean;
 }) {
   const label = (dir: string) => (accounts.length > 1 ? accounts.find((a) => a.dir.toLowerCase() === dir.toLowerCase())?.label : null);
@@ -364,7 +364,7 @@ function StartPage({
         <h2>{project.displayName}</h2>
         <div className="start-path">{project.path}</div>
         <div className="start-actions">
-          <NewChatButton big agy={!!agy} accounts={accounts} disabled={!project.exists} onStart={(c) => onOpen(c.provider, undefined, c.account ?? undefined, c.model)} />
+          <NewChatButton big agy={!!agy} accounts={accounts} disabled={!project.exists} onStart={(c) => onOpen(c.provider, undefined, c.account ?? undefined, c.model, c.effort)} />
           <button className="btn big" onClick={() => onOpen('shell')} disabled={!project.exists}>
             <SquareTerminal size={18} /> Shell
           </button>

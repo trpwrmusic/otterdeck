@@ -62,6 +62,8 @@ export interface TabView {
   model: string | null;
   /** Model id it was started with or switched to (null = the CLI's default). */
   modelId: string | null;
+  /** Claude's thinking effort set from Otterdeck (null = the account's setting). */
+  effort: string | null;
   /** The prompt that started the current or last turn. */
   lastPrompt: string | null;
   /** Claude's last reply, shortened. */
