@@ -79,6 +79,19 @@ export interface ProjectView {
   icon: string | null;
 }
 
+/** Phone access over Tailscale. */
+export interface RemoteView {
+  installed: boolean;
+  running: boolean;
+  /** tailscale serve publishes Otterdeck in the tailnet. */
+  enabled: boolean;
+  url: string | null;
+  owner: string | null;
+  error: string | null;
+  /** Devices that have Otterdeck open over the tailnet right now. */
+  devices: { name: string; since: number }[];
+}
+
 export interface UsageWindow {
   key: string;
   /** e.g. "Aktuelle Sitzung", "Woche, alle Modelle" */
@@ -110,6 +123,9 @@ export interface AppState {
   /** Group name → icon version for groups that have an own icon. */
   groupIcons: Record<string, string>;
   usage: UsageView[];
+  remote: RemoteView;
+  /** This window is the remote page (phone), not the PC. */
+  isRemote?: boolean;
   /** Code version the server runs; the window reloads when it changes. */
   version: string;
   /** available: newer code on disk · pending: restart waits for Claude to finish */

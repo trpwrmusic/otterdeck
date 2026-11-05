@@ -56,6 +56,7 @@ export function pickImage(): Promise<File | null> {
 }
 
 export const api = {
+  setRemote: (enabled: boolean) => call('POST', '/api/remote', { enabled }),
   setProjectIcon: (id: string, file: File) => putImage(`/api/projects/${id}/icon`, file),
   clearProjectIcon: (id: string) => call('DELETE', `/api/projects/${id}/icon`),
   setGroupIcon: (name: string, file: File) => putImage(`/api/groups/icon?name=${encodeURIComponent(name)}`, file),

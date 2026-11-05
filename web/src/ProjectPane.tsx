@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
-import type { AccountView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
+import type { AccountView, RemoteView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
 import { ContextMenu, Kbd, ProjectAvatar, StatusMark } from './bits';
 import { ChangesPanel } from './ChangesPanel';
 import { UsageCard } from './UsageCard';
+import { RemoteCard } from './RemoteCard';
 import { COMMENTS_LEAD, DiffView, FileView, formatComments, type ReviewComment } from './DiffView';
 import { TerminalView } from './TerminalView';
 import { ChatView } from './chat/ChatView';
@@ -22,6 +23,8 @@ interface Props {
   tabs: TabView[];
   accounts: AccountView[];
   usage: UsageView[];
+  remote?: RemoteView;
+  isRemote?: boolean;
   activeTab: string | null; // null = start page
   onActivate: (tabId: string | null) => void;
 }
@@ -36,7 +39,7 @@ function tabAttention(t: TabView) {
 const RUNNING = new Set(['starting', 'ready', 'working', 'waiting', 'done']);
 const fileName = (p: string) => p.split('/').pop() ?? p;
 
-export function ProjectPane({ project, tabs, accounts, usage, activeTab, onActivate }: Props) {
+export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, activeTab, onActivate }: Props) {
   const [views, setViews] = usePersisted<ViewTab[]>(`otter.views.${project.id}`, []);
   const [comments, setComments] = usePersisted<ReviewComment[]>(`otter.comments.${project.id}`, []);
   const [panelOpen, setPanelOpen] = usePersisted('otter.panel', true);
@@ -186,7 +189,7 @@ export function ProjectPane({ project, tabs, accounts, usage, activeTab, onActiv
             />
           )}
           <button
-            className={`icon-btn${panelOpen ? ' on' : ''}`}
+            className={`icon-btn panel-toggle${panelOpen ? ' on' : ''}`}
             onClick={() => setPanelOpen(!panelOpen)}
             title={panelOpen ? 'Änderungen ausblenden' : 'Änderungen einblenden'}
           >
@@ -300,11 +303,14 @@ export function ProjectPane({ project, tabs, accounts, usage, activeTab, onActiv
             onOpenFile={(p) => openView('file', p)}
             activePath={currentView?.path ?? null}
             footer={
+              <>
               <UsageCard
                 account={(current?.kind === 'claude' ? current.account : null) ?? tabs.find((t) => t.kind === 'claude')?.account ?? project.account}
                 accounts={accounts}
                 usage={usage}
               />
+              {remote && <RemoteCard remote={remote} isRemote={!!isRemote} />}
+              </>
             }
           />
         )}

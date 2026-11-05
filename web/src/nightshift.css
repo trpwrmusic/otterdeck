@@ -995,3 +995,63 @@
 .usage-row.hot .usage-pct {
   color: #ff8a8a;
 }
+
+/* ---------- phone access card ---------- */
+
+.remote-card {
+  margin-top: 0;
+}
+.usage-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.usage-account.on {
+  color: var(--positive);
+}
+.remote-on {
+  align-self: flex-start;
+}
+.remote-devices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.remote-device {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 99px;
+  background: var(--active);
+  font-size: 12px;
+  color: var(--text);
+}
+.remote-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--positive);
+}
+.remote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.remote-qr {
+  align-self: center;
+  width: 168px;
+  height: 168px;
+  padding: 8px;
+  border-radius: 10px;
+  background: #fff;
+}
+.remote-qr svg {
+  width: 100%;
+  height: 100%;
+}
+.remote-error {
+  font-size: 12px;
+  color: #ff8a8a;
+}

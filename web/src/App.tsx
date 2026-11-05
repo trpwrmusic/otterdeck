@@ -36,7 +36,8 @@ export function App() {
     stored === null ? null : stored?.startsWith('view:') ? stored : tabs.find((t) => t.id === stored)?.id ?? tabs[0]?.id ?? null;
 
   /** Narrow windows: the sidebar is a sheet that opens over the work. */
-  const [navOpen, setNavOpen] = useState(false);
+  // On a phone the project list comes first.
+  const [navOpen, setNavOpen] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [palette, setPalette] = useState(false);
   const selectProject = useCallback(
     (id: string) => {
@@ -318,6 +319,8 @@ export function App() {
           tabs={tabs}
           accounts={state.accounts}
           usage={state.usage ?? []}
+          remote={state.remote}
+          isRemote={!!state.isRemote}
           activeTab={activeTab}
           onActivate={(id) => activate(project.id, id)}
         />

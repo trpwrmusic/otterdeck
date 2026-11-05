@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
 import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, UPLOAD_DIR, WEB_DIST } from './config.ts';
 import { recordUsage, usageViews } from './usage.ts';
+import { isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
@@ -117,6 +118,7 @@ function state(): AppState {
     accounts,
     groupIcons: { ...(data.groupIcons ?? {}) },
     usage: usageViews(),
+    remote: remoteView(),
     version: VERSION,
     update: { ...update },
   };
@@ -135,6 +137,7 @@ if (DEV) {
 }
 
 function trusted(req: http.IncomingMessage, needOrigin: boolean) {
+  if (isRemote(req)) return remoteAllowed(req, needOrigin);
   if (!allowedHosts.has(String(req.headers.host))) return false;
   const origin = req.headers.origin;
   if (origin) return allowedOrigins.has(origin);
@@ -289,13 +292,29 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (parts[0] !== 'api') {
-      if (!allowedHosts.has(String(req.headers.host))) return json(res, 403, { error: 'host' });
+      if (!trusted(req, false)) return json(res, 403, { error: 'host' });
       return serveStatic(req, res);
     }
 
     if (!trusted(req, method !== 'GET')) return json(res, 403, { error: 'origin' });
 
     if (url.pathname === '/api/ping') return json(res, 200, { app: 'otterdeck' });
+    // /api/remote – phone access over Tailscale (turning it on only from the PC itself)
+    if (url.pathname === '/api/remote') {
+      if (method === 'GET') {
+        await refreshRemote();
+        return json(res, 200, remoteView());
+      }
+      const body = await readBody(req);
+      if (body.enabled && isRemote(req)) return json(res, 403, { error: 'Nur am PC einschaltbar.' });
+      try {
+        await setRemote(!!body.enabled);
+      } catch (err) {
+        return json(res, 400, { error: (err as Error).message });
+      }
+      events.emit('change');
+      return json(res, 200, remoteView());
+    }
     if (url.pathname === '/api/restart' && method === 'POST') {
       const body = await readBody(req);
       const cont = typeof body.tab === 'string' && typeof body.prompt === 'string' ? { tab: body.tab, prompt: body.prompt } : undefined;
@@ -306,7 +325,7 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, { ok: true });
       return setTimeout(shutdown, 100);
     }
-    if (url.pathname === '/api/state') return json(res, 200, state());
+    if (url.pathname === '/api/state') return json(res, 200, { ...state(), isRemote: isRemote(req) });
     if (url.pathname === '/api/fs/dirs') return json(res, 200, listDirs(url.searchParams.get('path') ?? ''));
     if (url.pathname === '/api/suggestions')
       return json(res, 200, suggestions(data.projects.map((p) => p.path)));
@@ -581,8 +600,14 @@ server.on('upgrade', (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => {
     if (url.pathname === '/ws/events') {
       eventClients.add(ws);
-      ws.send(JSON.stringify({ t: 'state', state: state() } satisfies EventMsg));
-      ws.on('close', () => eventClients.delete(ws));
+      const remote = isRemote(req);
+      (ws as any).remote = remote;
+      const untrack = remote ? trackDevice(req, () => events.emit('change')) : null;
+      ws.send(JSON.stringify({ t: 'state', state: { ...state(), isRemote: remote } } satisfies EventMsg));
+      ws.on('close', () => {
+        eventClients.delete(ws);
+        untrack?.();
+      });
       return;
     }
     if (url.pathname === '/ws/chat') {
@@ -632,8 +657,10 @@ events.on('change', () => {
   if (pushTimer) return;
   pushTimer = setTimeout(() => {
     pushTimer = null;
-    const s = JSON.stringify({ t: 'state', state: state() } satisfies EventMsg);
-    for (const ws of eventClients) if (ws.readyState === ws.OPEN) ws.send(s);
+    const st = state();
+    const local = JSON.stringify({ t: 'state', state: st } satisfies EventMsg);
+    const remote = JSON.stringify({ t: 'state', state: { ...st, isRemote: true } } satisfies EventMsg);
+    for (const ws of eventClients) if (ws.readyState === ws.OPEN) ws.send((ws as any).remote ? remote : local);
   }, 80);
 });
 

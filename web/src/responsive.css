@@ -68,3 +68,29 @@
     display: none;
   }
 }
+
+/* ---------- phone (also over Tailscale) ---------- */
+@media (max-width: 760px) {
+  .panel-toggle,
+  .start-hint {
+    display: none;
+  }
+  /* Room for Android's gesture bar and the iPhone home indicator. */
+  .composer-wrap,
+  .chat-foot {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  /* 16px keeps mobile browsers from zooming into the text box. */
+  .composer textarea {
+    font-size: 16px;
+  }
+  .sidebar {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+@media (hover: none) {
+  .msg-copy,
+  .code-wrap .copy-btn {
+    opacity: 1;
+  }
+}
