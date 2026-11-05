@@ -234,7 +234,9 @@ class Tab {
       this.setStatus('ready');
       changed();
     }
-    touchProject(this.rec.projectId);
+    // Typing counts as use; the terminal's automatic answers to Claude's queries (escape sequences
+    // sent when a tab is merely opened) don't.
+    if (!(d.startsWith('\x1b') && d.length > 1)) touchProject(this.rec.projectId);
   }
 
   // ---------- chat view ----------

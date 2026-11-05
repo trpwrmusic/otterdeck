@@ -136,6 +136,22 @@ interface ChatInfo {
   cwd: string | null;
   /** "cli" for interactive sessions, "sdk-cli" for `claude -p` and tools. */
   entrypoint: string | null;
+  /** Time of the last real message (yours or Claude's); compaction, resumes and bookkeeping don't count. */
+  lastAt: number | null;
+}
+
+/** A line that is an actual exchange, not machinery Claude writes on its own. */
+function isMessage(j: any): boolean {
+  if (j.type !== 'user' && j.type !== 'assistant') return false;
+  if (j.isMeta || j.isCompactSummary || j.isVisibleInTranscriptOnly) return false;
+  const c = j.message?.content;
+  if (j.type === 'user' && typeof c === 'string' && /^s*<(command-name|local-command-stdout|local-command-caveat|system-reminder)/.test(c)) return false;
+  return typeof j.timestamp === 'string';
+}
+
+function lastMessageAt(entries: any[]): number | null {
+  for (let i = entries.length - 1; i >= 0; i--) if (isMessage(entries[i])) return Date.parse(entries[i].timestamp) || null;
+  return null;
 }
 
 const infoCache = new Map<string, { mtime: number; info: ChatInfo }>();
@@ -152,6 +168,7 @@ function chatInfo(file: string, mtime: number): ChatInfo {
     title: raw ? String(raw).replace(/\s+/g, ' ').trim().slice(0, 120) : null,
     cwd: head.find((j) => typeof j.cwd === 'string')?.cwd ?? null,
     entrypoint: head.find((j) => typeof j.entrypoint === 'string')?.entrypoint ?? null,
+    lastAt: lastMessageAt(tail) ?? lastMessageAt(head),
   };
   infoCache.set(file, { mtime, info });
   return info;
@@ -203,7 +220,7 @@ export function allChats(projects: { id: string; path: string }[], limit = 200):
     const chat: Chat = {
       sessionId: f.id,
       title: info.title!,
-      updatedAt: f.mtime,
+      updatedAt: info.lastAt ?? f.mtime,
       account: f.account,
       dir: f.dir,
       cwd: info.cwd,
@@ -268,7 +285,7 @@ export function conversations(projectPath: string, limit = 9): Conversation[] {
       const info = chatInfo(f.file, f.mtime);
       if (!info.title || info.entrypoint === 'sdk-cli') continue;
       seen.add(f.id);
-      out.push({ sessionId: f.id, title: info.title, updatedAt: f.mtime, account: f.account });
+      out.push({ sessionId: f.id, title: info.title, updatedAt: info.lastAt ?? f.mtime, account: f.account });
     } catch {}
   }
   return out;
@@ -355,8 +372,16 @@ export function lastChatAt(projectPath: string): number | null {
   const enc = encodeProjectDir(projectPath);
   let newest: number | null = null;
   for (const a of listAccounts()) {
-    const f = jsonlFiles(path.join(a.dir, 'projects', enc))[0];
-    if (f && (newest === null || f.mtime > newest)) newest = f.mtime;
+    // A few most recently written files: a resume or a compaction can touch an old chat last.
+    for (const f of jsonlFiles(path.join(a.dir, 'projects', enc)).slice(0, 4)) {
+      if (newest !== null && f.mtime <= newest) break; // nothing in it can be newer than the file itself
+      let at: number | null = null;
+      try {
+        const info = chatInfo(f.file, f.mtime);
+        if (info.entrypoint !== 'sdk-cli') at = info.lastAt;
+      } catch {}
+      if (at !== null && (newest === null || at > newest)) newest = at;
+    }
   }
   return newest;
 }

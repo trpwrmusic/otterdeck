@@ -17,7 +17,10 @@ export type ActiveSort = 'alpha' | 'recent';
 /** When something last happened in a project's chats: your input, or Claude working, asking or finishing. */
 function lastActivity(state: AppState, p: ProjectView) {
   let t = Math.max(p.lastUsed, p.lastChat ?? 0);
-  for (const tab of state.tabs) if (tab.projectId === p.id && tab.kind === 'claude' && tab.status !== 'dormant') t = Math.max(t, tab.changedAt);
+  // Only real work moves a project up: a tab that is starting or resuming after a restart doesn't.
+  for (const tab of state.tabs)
+    if (tab.projectId === p.id && tab.kind === 'claude' && (tab.status === 'working' || tab.status === 'waiting' || (tab.status === 'done' && tab.unseen)))
+      t = Math.max(t, tab.changedAt);
   return t;
 }
 
