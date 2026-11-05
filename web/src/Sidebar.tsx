@@ -271,10 +271,14 @@ export function Sidebar(props: Props) {
           setPeek(null);
         }}
         onDragEnd={() => setMovingProject(null)}
-        onClick={() => onSelect(p.id)}
+        onClick={() => {
+          peekSoon(null);
+          onSelect(p.id);
+        }}
         onContextMenu={(e) => openMenu(e, projectMenu(p))}
-        onMouseEnter={(e) => peekSoon(p.id, e.currentTarget)}
-        onMouseLeave={() => peekSoon(null)}
+        // The preview is for a mouse: a tap on a phone fires the same enter event and left it standing.
+        onPointerEnter={(e) => e.pointerType === 'mouse' && peekSoon(p.id, e.currentTarget)}
+        onPointerLeave={() => peekSoon(null)}
         {...dropProps(p.id, (c) => onDropChat(p.id, c), (pid) => joinGroup(pid, { project: p }))}
       >
         <ProjectAvatar project={p} size={opts.compact || opts.child ? 24 : 30} />
