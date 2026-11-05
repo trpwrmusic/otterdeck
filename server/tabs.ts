@@ -5,10 +5,12 @@ import pty from 'node-pty';
 import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket } from 'ws';
-import type { TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
+import type { ChatServerMsg, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
 import { CLAUDE_BIN, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, PORT, SHELL_BIN } from './config.ts';
 import { HOOK_SETTINGS, describePermission, describeTool, shorten } from './hooks.ts';
+import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
+import { TranscriptTail } from './transcript.ts';
 import { data, newId, save, type ProjectRecord, type TabRecord } from './store.ts';
 
 const { Terminal } = headless as unknown as typeof import('@xterm/headless');
@@ -116,6 +118,8 @@ class Tab {
       else env.CLAUDE_CONFIG_DIR = account;
       shareMemory(project.path, account);
       args = ['--settings', HOOK_SETTINGS];
+      // For tests, e.g. OTTER_CLAUDE_ARGS="--permission-mode default" to see permission prompts.
+      if (process.env.OTTER_CLAUDE_ARGS) args.push(...process.env.OTTER_CLAUDE_ARGS.split(/\s+/).filter(Boolean));
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
       if (resume) args.push('--resume', resume);
       // A first message (e.g. review comments) starts the conversation right away.
@@ -224,6 +228,98 @@ class Tab {
     touchProject(this.rec.projectId);
   }
 
+  // ---------- chat view ----------
+
+  transcriptPath: string | null = null;
+  chatClients = new Set<WebSocket>();
+  private chat: TranscriptTail | null = null;
+  private chatTimer: NodeJS.Timeout | null = null;
+
+  /** Claude's transcript of this tab's conversation. */
+  transcriptFile(): string | null {
+    const id = this.rec.claudeSessionId;
+    const project = this.project;
+    if (!id || !project) return this.transcriptPath;
+    const derived = path.join(this.rec.account || project.account || DEFAULT_CLAUDE_DIR, 'projects', encodeProjectDir(project.path), `${id}.jsonl`);
+    return this.transcriptPath && path.basename(this.transcriptPath, '.jsonl') === id ? this.transcriptPath : derived;
+  }
+
+  private sendChat(ws: WebSocket, msg: ChatServerMsg) {
+    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+  }
+
+  attachChat(ws: WebSocket) {
+    this.chatClients.add(ws);
+    if (!this.chat) this.openChat();
+    this.sendChat(ws, { t: 'reset', items: this.chat?.list() ?? [], truncated: !!this.chat?.truncated });
+    // A dormant tab starts when you look at it, in either view.
+    if (!this.proc && this.status === 'dormant') this.start();
+  }
+
+  detachChat(ws: WebSocket) {
+    this.chatClients.delete(ws);
+    if (!this.chatClients.size) this.closeChat();
+  }
+
+  private openChat() {
+    const file = this.transcriptFile();
+    this.chat = file ? new TranscriptTail(file) : null;
+    this.chat?.load();
+    this.chatTimer = setInterval(() => {
+      if (!this.chat) {
+        // The conversation didn't exist yet when the view opened.
+        const f = this.transcriptFile();
+        if (f && fs.existsSync(f)) this.resetChat();
+        return;
+      }
+      const items = this.chat.poll();
+      if (items.length) for (const ws of this.chatClients) this.sendChat(ws, { t: 'upsert', items });
+    }, 400);
+  }
+
+  private closeChat() {
+    if (this.chatTimer) clearInterval(this.chatTimer);
+    this.chatTimer = null;
+    this.chat = null;
+  }
+
+  resetChat() {
+    if (!this.chatClients.size) return;
+    this.closeChat();
+    this.openChat();
+    for (const ws of this.chatClients) this.sendChat(ws, { t: 'reset', items: this.chat?.list() ?? [], truncated: !!this.chat?.truncated });
+  }
+
+  /**
+   * Types a message like keystrokes, so Claude reads it as your own words (a paste would arrive
+   * as "pasted content"). Line breaks become Claude Code's "\ + Enter".
+   */
+  async type(text: string) {
+    if (!this.proc) return false;
+    const lines = text.replace(/\r\n/g, '\n').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      for (let j = 0; j < lines[i].length; j += 48) {
+        this.proc?.write(lines[i].slice(j, j + 48));
+        await new Promise((r) => setTimeout(r, 6));
+      }
+      if (i < lines.length - 1) {
+        this.proc?.write('\\\r');
+        await new Promise((r) => setTimeout(r, 15));
+      }
+    }
+    await new Promise((r) => setTimeout(r, 80));
+    this.proc?.write('\r');
+    touchProject(this.rec.projectId);
+    return true;
+  }
+
+  /** Answers Claude's prompts: allow = Enter (first option), deny/stop = Esc. */
+  key(name: 'allow' | 'deny' | 'stop') {
+    if (!this.proc) return false;
+    this.input(name === 'allow' ? '\r' : '\x1b');
+    return true;
+  }
+
   /**
    * Sends a message: `lead` is typed like your own words, `text` follows as one paste (so its
    * newlines don't submit early), then Enter. Claude treats pasted text as material, not as your
@@ -253,6 +349,8 @@ class Tab {
 
   kill() {
     for (const ws of this.clients) ws.close();
+    // Chat windows reconnect and pick up the (same or new) conversation.
+    for (const ws of this.chatClients) ws.close();
     try {
       this.proc?.kill();
     } catch {}
@@ -265,9 +363,12 @@ class Tab {
     if (this.rec.kind !== 'claude') return;
     switch (event) {
       case 'SessionStart':
+        if (typeof p.transcript_path === 'string') this.transcriptPath = p.transcript_path;
         if (p.session_id && p.session_id !== this.rec.claudeSessionId) {
+          // New conversation in this tab (first start, /clear): the chat view follows it.
           this.rec.claudeSessionId = p.session_id;
           save();
+          this.resetChat();
         }
         if (this.status === 'starting' || this.status === 'dormant') this.setStatus('ready');
         break;

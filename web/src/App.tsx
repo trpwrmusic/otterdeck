@@ -192,6 +192,9 @@ export function App() {
               activate(pid, id);
             });
           break;
+        case 'toggle-view':
+          window.dispatchEvent(new Event('otter:toggle-view'));
+          break;
         case 'tab-index':
           if (pid && ptabs[action.index]) activate(pid, ptabs[action.index].id);
           break;

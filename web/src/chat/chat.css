@@ -1,0 +1,439 @@
+/* Chat view (phase 3). */
+
+.view-switch button {
+  padding: 6px 13px;
+}
+
+.chat-card {
+  flex-direction: column;
+}
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  user-select: text;
+}
+.chat-inner {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 24px 28px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.chat-empty {
+  color: var(--text-2);
+  text-align: center;
+  padding: 18vh 0;
+}
+.chat-note {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 2px 10px;
+}
+
+/* ---------- messages ---------- */
+
+.msg-user {
+  display: flex;
+  justify-content: flex-end;
+}
+.bubble {
+  max-width: min(78%, 620px);
+  background: var(--accent-tint);
+  border-radius: 18px 18px 6px 18px;
+  padding: 10px 15px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.45;
+}
+.msg-user.pending .bubble {
+  opacity: 0.6;
+}
+.bubble-img {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.md {
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+.md.quiet {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p,
+.md ul,
+.md ol {
+  margin: 0 0 10px;
+}
+.md ul,
+.md ol {
+  padding-left: 22px;
+}
+.md li {
+  margin: 3px 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 16px 0 6px;
+}
+.md h1 {
+  font-size: 17px;
+}
+.md a {
+  color: var(--accent-text);
+}
+.md code {
+  font: 12.5px var(--code-font);
+  background: var(--hover);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.md pre.md-code {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0 0 10px;
+}
+.md pre.md-code code {
+  background: none;
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.md table {
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.md th,
+.md td {
+  padding: 5px 12px 5px 0;
+  text-align: left;
+  vertical-align: top;
+}
+.md th {
+  font-weight: 650;
+}
+.md blockquote {
+  margin: 0 0 10px;
+  padding-left: 12px;
+  color: var(--text-2);
+  box-shadow: inset 3px 0 0 var(--hover);
+}
+
+.thinking button,
+.steps-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 3px 0;
+}
+.thinking button:hover,
+.steps-more:hover {
+  color: var(--text-2);
+}
+.thinking .md {
+  margin-top: 6px;
+}
+.chev {
+  transition: transform 0.12s;
+  flex: none;
+}
+.chev.rot {
+  transform: rotate(90deg);
+}
+
+/* ---------- steps ---------- */
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  margin-left: -8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.step-head svg {
+  color: var(--text-3);
+  flex: none;
+}
+.step-head:hover {
+  background: var(--hover);
+}
+.step-head .chev {
+  opacity: 0;
+}
+.step-head:hover .chev,
+.step.open .chev {
+  opacity: 1;
+}
+.step-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.step.error .step-text {
+  color: var(--minus);
+}
+.step-body {
+  margin: 2px 0 8px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tool-cmd,
+.tool-out {
+  margin: 0;
+  font: 12px/1.5 var(--code-font);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 9px 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+.tool-cmd {
+  color: var(--text);
+}
+.tool-out {
+  color: var(--text-2);
+}
+.tool-note,
+.tool-prompt {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.tool-prompt {
+  white-space: pre-wrap;
+}
+
+/* ---------- edits ---------- */
+
+.edit-card {
+  background: var(--surface-2);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.edit-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.edit-head svg {
+  color: var(--text-3);
+  flex: none;
+}
+.edit-path {
+  flex: 1;
+  min-width: 0;
+  font: 500 12.5px var(--code-font);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-diff {
+  font: 12.5px/1.55 var(--code-font);
+  padding: 0 0 8px;
+  overflow-x: auto;
+}
+.mini-diff + .mini-diff {
+  padding-top: 8px;
+}
+.md-line {
+  white-space: pre;
+  padding: 0 14px 0 4px;
+  min-width: max-content;
+}
+.md-line.add {
+  background: var(--add-bg);
+}
+.md-line.del {
+  background: var(--del-bg);
+}
+.md-line .sign {
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+  color: var(--text-3);
+  user-select: none;
+}
+.md-line.add .sign {
+  color: var(--add-sign);
+}
+.md-line.del .sign {
+  color: var(--del-sign);
+}
+.md-gap {
+  font: 600 11.5px var(--font);
+  color: var(--text-3);
+  padding: 5px 24px;
+}
+
+/* ---------- tasks ---------- */
+
+.todo-card {
+  background: var(--surface-2);
+  border-radius: 14px;
+  padding: 11px 14px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.todo-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 2px;
+}
+.todo-head svg {
+  color: var(--accent);
+}
+.todo-count {
+  color: var(--text-3);
+  font-weight: 600;
+}
+.todo {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.todo svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+.todo.completed {
+  color: var(--text-3);
+}
+.todo.completed svg {
+  color: var(--accent);
+}
+.todo.in_progress {
+  color: var(--text);
+  font-weight: 600;
+}
+.todo.in_progress svg {
+  color: var(--accent);
+}
+
+/* ---------- status, question, composer ---------- */
+
+.chat-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.ask-card {
+  background: var(--accent-tint);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ask-q {
+  font-weight: 600;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.composer-wrap {
+  padding: 8px 20px 18px;
+}
+.composer {
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--bg);
+  border-radius: 24px;
+  padding: 8px 8px 8px 18px;
+  box-shadow: inset 0 0 0 1px var(--hover);
+}
+.composer textarea {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  line-height: 21px;
+  padding: 6px 0;
+  max-height: 220px;
+}
+.round-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--hover);
+  color: var(--text);
+  flex: none;
+}
+.round-btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.round-btn:disabled {
+  opacity: 0.35;
+}

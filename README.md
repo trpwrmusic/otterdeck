@@ -36,6 +36,22 @@ Rechts neben den Tabs (ein- und ausblenden mit dem Leisten-Knopf oben rechts):
 
 Git liest dabei mit `--no-optional-locks`, sonst würde jede Abfrage `.git/index` neu schreiben und der Datei-Beobachter eine Endlosschleife auslösen.
 
+## Chat-Ansicht
+
+Jeder Claude-Tab lässt sich zwischen **Terminal** und **Chat** umschalten (Kopfzeile oder Strg+Umschalt+Leertaste). Es ist dieselbe Sitzung: Der Chat liest Claudes Transkript live mit, und was du dort schreibst, tippt Otterdeck ins Terminal.
+
+- Deine Nachricht erscheint sofort, Claudes Antworten als formatierter Text.
+- Dateiänderungen stehen als Diff im Gespräch, kleine Schritte (Lesen, Suchen, Befehle) als kompakte Zeilen mit Details beim Anklicken.
+- Die aktuelle Aufgabenliste steht als Karte da.
+- Fragt Claude um Erlaubnis, gibt es „Erlauben“ und „Ablehnen“; für alles andere „Im Terminal antworten“.
+- Nachrichten werden getippt, nicht eingefügt: Eingefügter Text käme bei Claude als fremdes Material an.
+
+Zum Testen von Rückfragen: Testserver mit `OTTER_CLAUDE_ARGS="--permission-mode default"` starten.
+
+## Neue Versionen
+
+Ändert sich Otterdecks Code, zeigt die Seitenleiste „Neue Version bereit“. Der Neustart wartet, bis kein Claude mehr arbeitet; danach setzen alle Tabs ihr Gespräch fort und das Fenster lädt sich neu. Im Terminal: `node bin/otter.mjs restart`.
+
 ## Tastenkürzel
 
 | | |
@@ -43,6 +59,7 @@ Git liest dabei mit `--no-optional-locks`, sonst würde jede Abfrage `.git/index
 | Strg+Umschalt+Enter | neuer Claude-Tab |
 | Strg+Umschalt+^ | neue Shell |
 | Strg+Umschalt+J | nächste Sitzung, die auf dich wartet |
+| Strg+Umschalt+Leertaste | Claude-Tab: Terminal ↔ Chat |
 | Strg+Umschalt+↑ / ↓ | Projekt wechseln |
 | Strg+Umschalt+← / → oder 1–9 | Tab wechseln |
 | Strg+C / Strg+V | kopieren (bei Auswahl) / einfügen |

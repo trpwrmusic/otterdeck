@@ -163,6 +163,26 @@ export interface FileContent {
   size: number;
 }
 
+// ---------- chat view ----------
+
+export interface ToolResult {
+  text: string;
+  error: boolean;
+  images: number;
+}
+
+/** One thing in the chat, built from Claude's transcript. Same id = same thing (updates replace it). */
+export type ChatItem =
+  | { id: string; k: 'user'; text: string; images: number; at: number }
+  | { id: string; k: 'text'; text: string; at: number }
+  | { id: string; k: 'thinking'; text: string; at: number }
+  | { id: string; k: 'tool'; name: string; summary: string; input: Record<string, unknown>; result: ToolResult | null; at: number }
+  | { id: string; k: 'note'; text: string; at: number };
+
+export type ChatServerMsg =
+  | { t: 'reset'; items: ChatItem[]; truncated: boolean }
+  | { t: 'upsert'; items: ChatItem[] };
+
 /** Messages on /ws/events */
 export type EventMsg = { t: 'state'; state: AppState } | { t: 'changes'; projectId: string };
 

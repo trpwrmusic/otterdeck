@@ -57,6 +57,8 @@ export const api = {
   newTab: (projectId: string, kind: 'claude' | 'shell', resume?: string, prompt?: string, account?: string) =>
     call<{ id: string }>('POST', '/api/tabs', { projectId, kind, resume, prompt, account }),
   sendToTab: (id: string, text: string, lead?: string) => call('POST', `/api/tabs/${id}/send`, { text, lead }),
+  typeToTab: (id: string, text: string) => call('POST', `/api/tabs/${id}/type`, { text }),
+  keyToTab: (id: string, key: 'allow' | 'deny' | 'stop') => call('POST', `/api/tabs/${id}/key`, { key }),
   changes: (id: string, mode: CompareMode) => call<Changes>('GET', `/api/projects/${id}/changes?mode=${mode}`),
   diff: (id: string, path: string, mode: CompareMode) =>
     call<FileDiff>('GET', `/api/projects/${id}/diff?mode=${mode}&path=${encodeURIComponent(path)}`),
@@ -71,6 +73,7 @@ export const api = {
 
 const wsUrl = (path: string) => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${path}`;
 export const termUrl = (tab: string) => wsUrl(`/ws/term?tab=${encodeURIComponent(tab)}`);
+export const chatUrl = (tab: string) => wsUrl(`/ws/chat?tab=${encodeURIComponent(tab)}`);
 
 let firstVersion: string | null = null;
 

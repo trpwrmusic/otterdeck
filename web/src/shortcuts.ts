@@ -7,7 +7,8 @@ export type ShortcutAction =
   | { type: 'new-claude' }
   | { type: 'new-shell' }
   | { type: 'tab-index'; index: number }
-  | { type: 'tab'; delta: 1 | -1 };
+  | { type: 'tab'; delta: 1 | -1 }
+  | { type: 'toggle-view' };
 
 export function shortcutFor(e: KeyboardEvent): ShortcutAction | null {
   if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return null;
@@ -26,6 +27,8 @@ export function shortcutFor(e: KeyboardEvent): ShortcutAction | null {
       return { type: 'new-claude' };
     case 'Backquote':
       return { type: 'new-shell' };
+    case 'Space':
+      return { type: 'toggle-view' };
   }
   const m = e.code.match(/^Digit([1-9])$/);
   if (m) return { type: 'tab-index', index: Number(m[1]) - 1 };

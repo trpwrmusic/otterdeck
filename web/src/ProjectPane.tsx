@@ -6,6 +6,7 @@ import { ContextMenu, Kbd, ProjectAvatar, StatusMark } from './bits';
 import { ChangesPanel } from './ChangesPanel';
 import { COMMENTS_LEAD, DiffView, FileView, formatComments, type ReviewComment } from './DiffView';
 import { TerminalView } from './TerminalView';
+import { ChatView } from './chat/ChatView';
 
 /** Diff and file tabs live only in this window, next to the terminal tabs. */
 interface ViewTab {
@@ -39,10 +40,23 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
   const [mode, setMode] = usePersisted<CompareMode>(`otter.mode.${project.id}`, 'head');
   const [sending, setSending] = useState(false);
   const lastClaude = useRef<string | null>(null);
+  /** Per Claude tab: terminal or chat. */
+  const [tabViews, setTabViews] = usePersisted<Record<string, 'chat' | 'terminal'>>('otter.tabViews', {});
+  const [defaultView] = usePersisted<'chat' | 'terminal'>('otter.defaultView', 'terminal');
 
   const currentView = views.find((v) => v.id === activeTab) ?? null;
   const current = currentView ? null : tabs.find((t) => t.id === activeTab) ?? (activeTab?.startsWith('view:') ? tabs[0] ?? null : null);
   if (current?.kind === 'claude') lastClaude.current = current.id;
+  const viewOf = (t: TabView) => (t.kind === 'claude' ? tabViews[t.id] ?? defaultView : 'terminal');
+  const setViewOf = (id: string, v: 'chat' | 'terminal') => setTabViews((m) => ({ ...m, [id]: v }));
+  const currentMode = current ? viewOf(current) : 'terminal';
+
+  // Ctrl+Shift+Space (see shortcuts.ts) flips the Claude tab in front.
+  useEffect(() => {
+    const flip = () => current?.kind === 'claude' && setViewOf(current.id, viewOf(current) === 'chat' ? 'terminal' : 'chat');
+    window.addEventListener('otter:toggle-view', flip);
+    return () => window.removeEventListener('otter:toggle-view', flip);
+  });
   const [accountMenu, setAccountMenu] = useState<{ x: number; y: number } | null>(null);
   const multi = accounts.length > 1;
   const accountOf = (dir: string | null | undefined) => accounts.find((a) => a.dir.toLowerCase() === (dir ?? '').toLowerCase());
@@ -121,6 +135,16 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
           )}
         </div>
         <div className="pane-actions">
+          {current?.kind === 'claude' && !currentView && (
+            <div className="segmented view-switch" title="Strg+Umschalt+Leertaste">
+              <button className={currentMode === 'terminal' ? 'on' : ''} onClick={() => setViewOf(current.id, 'terminal')}>
+                Terminal
+              </button>
+              <button className={currentMode === 'chat' ? 'on' : ''} onClick={() => setViewOf(current.id, 'chat')}>
+                Chat
+              </button>
+            </div>
+          )}
           <button className="btn small" onClick={() => open('shell')} title="Shell öffnen (Strg+Umschalt+^)">
             <SquareTerminal size={15} /> Shell
           </button>
@@ -238,6 +262,10 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
                 ) : (
                   <FileView project={project} path={currentView.path} />
                 )}
+              </div>
+            ) : current && currentMode === 'chat' ? (
+              <div className="doc-card chat-card" key={`chat-${current.id}`}>
+                <ChatView tab={current} onShowTerminal={() => setViewOf(current.id, 'terminal')} />
               </div>
             ) : current ? (
               <div className="term-card" key={current.id}>

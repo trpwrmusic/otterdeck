@@ -352,6 +352,19 @@ const server = http.createServer(async (req, res) => {
         restartTab(id, !!body.fresh);
         return json(res, 200, { ok: true });
       }
+      if (parts[3] === 'type' && method === 'POST') {
+        const body = await readBody(req);
+        const text = String(body.text ?? '').trim();
+        if (!text) return json(res, 400, { error: 'Leere Nachricht.' });
+        const ok = await tabs.get(id)!.type(text);
+        return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Der Tab läuft gerade nicht.' });
+      }
+      if (parts[3] === 'key' && method === 'POST') {
+        const body = await readBody(req);
+        const key = body.key === 'allow' ? 'allow' : body.key === 'deny' ? 'deny' : 'stop';
+        const ok = tabs.get(id)!.key(key);
+        return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Der Tab läuft gerade nicht.' });
+      }
       if (parts[3] === 'send' && method === 'POST') {
         const body = await readBody(req);
         const ok = tabs.get(id)!.paste(String(body.text ?? ''), body.submit !== false, String(body.lead ?? ''));
@@ -382,6 +395,13 @@ server.on('upgrade', (req, socket, head) => {
       eventClients.add(ws);
       ws.send(JSON.stringify({ t: 'state', state: state() } satisfies EventMsg));
       ws.on('close', () => eventClients.delete(ws));
+      return;
+    }
+    if (url.pathname === '/ws/chat') {
+      const tab = tabs.get(url.searchParams.get('tab') ?? '');
+      if (!tab || tab.rec.kind !== 'claude') return ws.close(4404, 'tab');
+      tab.attachChat(ws);
+      ws.on('close', () => tab.detachChat(ws));
       return;
     }
     if (url.pathname === '/ws/term') {
