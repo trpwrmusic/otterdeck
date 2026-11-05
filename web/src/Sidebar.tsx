@@ -12,9 +12,19 @@ const PROJECT_MIME = 'application/x-otter-project';
 
 export type Entry = { kind: 'project'; p: ProjectView } | { kind: 'group'; name: string; projects: ProjectView[] };
 
+export type ActiveSort = 'alpha' | 'recent';
+
+/** When something last happened in a project's chats: your input, or Claude working, asking or finishing. */
+function lastActivity(state: AppState, p: ProjectView) {
+  let t = p.lastUsed;
+  for (const tab of state.tabs) if (tab.projectId === p.id && tab.kind === 'claude' && tab.status !== 'dormant') t = Math.max(t, tab.changedAt);
+  return t;
+}
+
 /** Sections of the sidebar; a group sits in the section of its liveliest project. */
-export function groupProjects(state: AppState, now = Date.now()) {
+export function groupProjects(state: AppState, sort: ActiveSort = 'alpha', now = Date.now()) {
   const tabsOf = (p: ProjectView) => state.tabs.filter((t) => t.projectId === p.id);
+  const activity = new Map(state.projects.map((p) => [p.id, lastActivity(state, p)]));
   const rank = (p: ProjectView) =>
     p.pinned ? 0 : attentionOf(tabsOf(p)) || now - p.lastUsed < 6 * HOUR ? 1 : now - p.lastUsed < 24 * HOUR ? 2 : 3;
   const sections: Entry[][] = [[], [], [], []];
@@ -25,26 +35,39 @@ export function groupProjects(state: AppState, now = Date.now()) {
   }
   for (const [name, projects] of groups) {
     const best = Math.min(...projects.map(rank));
-    projects.sort((a, b) => a.displayName.localeCompare(b.displayName, 'de'));
+    projects.sort((a, b) =>
+      sort === 'recent' ? activity.get(b.id)! - activity.get(a.id)! : a.displayName.localeCompare(b.displayName, 'de'),
+    );
     sections[best].push({ kind: 'group', name, projects });
   }
-  // Active entries keep a stable order (by name), so rows don't jump around while you work;
-  // the quieter sections go by last use.
+  // Pinned and active: A–Z keeps rows still while you work, "recent" puts the latest chat on top.
+  // The quieter sections always go by last use.
   const lastUse = (e: Entry) => (e.kind === 'project' ? e.p.lastUsed : Math.max(...e.projects.map((p) => p.lastUsed)));
+  const latest = (e: Entry) => (e.kind === 'project' ? activity.get(e.p.id)! : Math.max(...e.projects.map((p) => activity.get(p.id)!)));
   const label = (e: Entry) => (e.kind === 'project' ? e.p.displayName : e.name);
-  sections[0].sort((a, b) => label(a).localeCompare(label(b), 'de'));
-  sections[1].sort((a, b) => label(a).localeCompare(label(b), 'de'));
+  const bySort = (a: Entry, b: Entry) => (sort === 'recent' ? latest(b) - latest(a) : label(a).localeCompare(label(b), 'de'));
+  sections[0].sort(bySort);
+  sections[1].sort(bySort);
   sections[2].sort((a, b) => lastUse(b) - lastUse(a));
   sections[3].sort((a, b) => lastUse(b) - lastUse(a));
   const [pinned, active, recent, older] = sections;
   return { pinned, active, recent, older };
 }
 
+/** The sort choice as stored by the sidebar (keyboard navigation follows the same order). */
+function readSort(): ActiveSort {
+  try {
+    return JSON.parse(localStorage.getItem('otter.activeSort') ?? '"alpha"') === 'recent' ? 'recent' : 'alpha';
+  } catch {
+    return 'alpha';
+  }
+}
+
 const flat = (list: Entry[]) => list.flatMap((e) => (e.kind === 'project' ? [e.p] : e.projects));
 
 /** Projects in the order the sidebar shows them (for keyboard navigation). */
-export function sidebarOrder(state: AppState, showOlder: boolean) {
-  const g = groupProjects(state);
+export function sidebarOrder(state: AppState, showOlder: boolean, sort: ActiveSort = readSort()) {
+  const g = groupProjects(state, sort);
   return [...flat(g.pinned), ...flat(g.active), ...flat(g.recent), ...(showOlder ? flat(g.older) : [])];
 }
 
@@ -102,7 +125,8 @@ export function Sidebar(props: Props) {
     const top = el.getBoundingClientRect().top;
     peekTimer.current = window.setTimeout(() => setPeek({ id, top }), 450);
   };
-  const sections = groupProjects(state);
+  const [sort, setSort] = usePersisted<ActiveSort>('otter.activeSort', 'alpha');
+  const sections = groupProjects(state, sort);
   const groupNames = [...new Set(state.projects.map((p) => p.group).filter((g): g is string => !!g))].sort((a, b) => a.localeCompare(b, 'de'));
   const tabsOf = (ids: string[]) => state.tabs.filter((t) => ids.includes(t.projectId));
 
@@ -302,10 +326,21 @@ export function Sidebar(props: Props) {
   const entries = (list: Entry[], compact = false) =>
     list.map((e) => (e.kind === 'project' ? row(e.p, { compact }) : groupBlock(e, compact)));
 
-  const section = (title: string, list: Entry[], compact = false) =>
+  const section = (title: string, list: Entry[], compact = false, sortable = false) =>
     list.length > 0 && (
       <div className="section">
-        <div className="section-title">{title}</div>
+        <div className="section-title">
+          {title}
+          {sortable && (
+            <button
+              className="section-sort"
+              onClick={() => setSort(sort === 'alpha' ? 'recent' : 'alpha')}
+              title={sort === 'alpha' ? 'Sortiert nach Name · klicken: zuletzt benutzt zuerst' : 'Zuletzt benutzt zuerst · klicken: nach Name'}
+            >
+              {sort === 'alpha' ? 'A–Z' : 'Zuletzt'}
+            </button>
+          )}
+        </div>
         {entries(list, compact)}
       </div>
     );
@@ -354,7 +389,7 @@ export function Sidebar(props: Props) {
       <div className={`sidebar-scroll${dragging ? ' dragging' : ''}${movingProject ? ' moving-project' : ''}`}>
         <Glide
           selector=".row.selected"
-          watch={[selectedId, adding, state.projects.length, showOlder, JSON.stringify(closedGroups), state.projects.map((p) => p.group ?? '').join('|')]}
+          watch={[selectedId, adding, state.projects.length, showOlder, sort, JSON.stringify(closedGroups), flat([...sections.pinned, ...sections.active]).map((p) => p.id + (p.group ?? '')).join('|')]}
         />
         {dragging && <div className="drop-hint">Auf ein Projekt ziehen</div>}
         {movingProject && <div className="drop-hint">Auf ein Projekt oder eine Gruppe ziehen</div>}
@@ -363,8 +398,8 @@ export function Sidebar(props: Props) {
             <Plus size={16} /> Erstes Projekt hinzufügen
           </button>
         )}
-        {section('Angepinnt', sections.pinned)}
-        {section('Aktiv', sections.active)}
+        {section('Angepinnt', sections.pinned, false, !sections.active.length)}
+        {section('Aktiv', sections.active, false, true)}
         {section('Letzter Tag', sections.recent, true)}
         {sections.older.length > 0 && (
           <div className="section">
