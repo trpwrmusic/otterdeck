@@ -38,7 +38,9 @@ function grouped(list: ModelChoice[]) {
   return [...rows.values()];
 }
 
-const EFFORT: Record<string, string> = { low: 'wenig', medium: 'mittel', high: 'viel', max: 'max' };
+/** agy's "effort": how long the model thinks before it answers. */
+const EFFORT: Record<string, string> = { low: 'schnell', medium: 'normal', high: 'gründlich', max: 'maximal' };
+const EFFORT_NOTE = 'Wie lange das Modell nachdenkt: schnell, normal oder gründlich. Gründlich ist bei schweren Aufgaben besser, aber langsamer.';
 
 export interface NewChatChoice {
   provider: Provider;
@@ -80,6 +82,7 @@ function ModelList({
             <span className="model-hint">{p === 'claude' ? 'Voreinstellung von Claude Code' : 'Voreinstellung von Antigravity'}</span>
             {current?.provider === p && !current.model && <Check size={14} className="model-check" />}
           </button>
+          {p === 'agy' && <div className="model-note effort-note">{EFFORT_NOTE}</div>}
           {p === 'agy'
             ? grouped(models.agy).map((row) => (
                 <div key={row.base} className="model-row group">
@@ -371,10 +374,11 @@ export function ComposerSheet({ tab }: { tab: TabView }) {
               </button>
               {rows.map((r) => (
                 <button key={r.base} className={`chip${pickedRow?.base === r.base ? ' sel' : ''}`} onClick={() => chooseBase(r)}>
-                  {r.base.replace(/^Claudes+/, '')}
+                  {r.base.replace(/^Claude\s+/, '')}
                 </button>
               ))}
             </div>
+            {pickedRow && pickedRow.variants.length > 1 && <div className="sheet-sub">Nachdenken</div>}
             {pickedRow && pickedRow.variants.length > 1 && (
               <div className="seg">
                 {pickedRow.variants.map((v) => (
