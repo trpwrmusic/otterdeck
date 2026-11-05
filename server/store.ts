@@ -9,6 +9,8 @@ export interface ProjectRecord {
   path: string;
   name?: string;
   pinned?: boolean;
+  /** Name of the group this project belongs to (Heidehof → App, Website). */
+  group?: string;
   account?: string;
   addedAt: number;
   lastUsed: number;

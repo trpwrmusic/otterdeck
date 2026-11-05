@@ -6,7 +6,7 @@ import { AddProject } from './AddProject';
 import { ChatsPage } from './ChatsPage';
 import { CommandPalette, type Command } from './CommandPalette';
 import { ProjectPane } from './ProjectPane';
-import { Sidebar, sidebarOrder } from './Sidebar';
+import { fullName, Sidebar, sidebarOrder } from './Sidebar';
 import { shortcutFor } from './shortcuts';
 
 const notifySupported = typeof Notification !== 'undefined';
@@ -142,7 +142,7 @@ export function App() {
       const looking = viewing.current.visible && viewing.current.tab === t.id;
       if (looking) continue;
       const p = state.projects.find((x) => x.id === t.projectId);
-      const name = p?.displayName ?? 'Claude';
+      const name = p ? fullName(p) : 'Claude';
       const waiting = t.status === 'waiting';
       const finished = t.status === 'done' && old.status === 'working';
       if (!waiting && !finished) continue;
@@ -231,8 +231,8 @@ export function App() {
     const list: Command[] = [];
     if (pid) {
       list.push(
-        { id: 'a:claude', group: 'Aktionen', title: `Neuer Chat in ${project!.displayName}`, keys: 'Strg ⇧ Enter', run: () => api.newTab(pid, 'claude').then(({ id }) => activate(pid, id)) },
-        { id: 'a:shell', group: 'Aktionen', title: `Neue Shell in ${project!.displayName}`, keys: 'Strg ⇧ ^', run: () => api.newTab(pid, 'shell').then(({ id }) => activate(pid, id)) },
+        { id: 'a:claude', group: 'Aktionen', title: `Neuer Chat in ${fullName(project!)}`, keys: 'Strg ⇧ Enter', run: () => api.newTab(pid, 'claude').then(({ id }) => activate(pid, id)) },
+        { id: 'a:shell', group: 'Aktionen', title: `Neue Shell in ${fullName(project!)}`, keys: 'Strg ⇧ ^', run: () => api.newTab(pid, 'shell').then(({ id }) => activate(pid, id)) },
         { id: 'a:view', group: 'Aktionen', title: 'Terminal oder Chat umschalten', keys: 'Strg ⇧ Leer', run: () => window.dispatchEvent(new Event('otter:toggle-view')) },
         { id: 'a:panel', group: 'Aktionen', title: 'Änderungen ein- oder ausblenden', run: () => window.dispatchEvent(new Event('otter:toggle-panel')) },
       );

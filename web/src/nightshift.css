@@ -732,3 +732,61 @@
   font-size: 12px;
   color: var(--danger);
 }
+
+/* ---------- groups in the sidebar ---------- */
+
+.group-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #1b1b1e;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+.group-count {
+  margin-left: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--faint);
+}
+.group-chev {
+  color: var(--faint);
+  transition: transform 0.2s var(--ease);
+}
+.group-chev.rot {
+  transform: rotate(90deg);
+}
+.group-head.holds {
+  box-shadow: inset 2px 0 0 var(--muted);
+}
+.group-children {
+  /* not positioned: the glide measures rows against the sidebar list */
+  margin-left: 22px;
+  padding-left: 6px;
+  box-shadow: inset 1px 0 0 var(--border);
+  animation: rise 0.2s var(--ease);
+}
+.row.child {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.row.moving {
+  opacity: 0.45;
+}
+.sidebar-scroll.moving-project .row:not(.moving) {
+  outline: 1.5px dashed #3a3a40;
+  outline-offset: -2px;
+}
+.crumb {
+  color: var(--faint);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.crumb::after {
+  content: '/';
+  margin-left: 8px;
+  color: var(--control);
+}

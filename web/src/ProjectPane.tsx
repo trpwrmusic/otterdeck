@@ -130,6 +130,7 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
     <main className="pane">
       <header className="pane-head">
         <div className="pane-title">
+          {project.group && <span className="crumb">{project.group}</span>}
           <h1>{project.displayName}</h1>
           {project.branch && (
             <span className="pill">

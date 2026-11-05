@@ -39,7 +39,8 @@ async function call<T = any>(method: string, url: string, body?: unknown): Promi
 
 export const api = {
   addProject: (path: string) => call<{ id: string }>('POST', '/api/projects', { path }),
-  updateProject: (id: string, patch: { name?: string | null; pinned?: boolean; account?: string | null }) =>
+  renameGroup: (from: string, to: string) => call('POST', '/api/groups', { from, to }),
+  updateProject: (id: string, patch: { name?: string | null; pinned?: boolean; account?: string | null; group?: string | null }) =>
     call('PATCH', `/api/projects/${id}`, patch),
   removeProject: (id: string) => call('DELETE', `/api/projects/${id}`),
   reveal: (id: string) => call('POST', `/api/projects/${id}/reveal`, {}),

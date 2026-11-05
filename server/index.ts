@@ -75,6 +75,7 @@ function projectView(p: (typeof data.projects)[number]): ProjectView {
     branch: branches.get(p.id) ?? null,
     exists: fs.existsSync(p.path),
     account: p.account ?? null,
+    group: p.group ?? null,
   };
 }
 
@@ -296,6 +297,17 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ...result, tabId });
     }
 
+    // /api/groups – rename a group (to = name) or dissolve it (to = empty): applies to all its projects
+    if (url.pathname === '/api/groups' && method === 'POST') {
+      const body = await readBody(req);
+      const from = String(body.from ?? '').trim();
+      const to = String(body.to ?? '').trim();
+      for (const p of data.projects) if (p.group === from) p.group = to || undefined;
+      save();
+      events.emit('change');
+      return json(res, 200, { ok: true });
+    }
+
     // /api/projects
     if (parts[1] === 'projects' && !parts[2] && method === 'POST') {
       const body = await readBody(req);
@@ -321,6 +333,7 @@ const server = http.createServer(async (req, res) => {
         if ('name' in body) p.name = String(body.name ?? '').trim() || undefined;
         if ('pinned' in body) p.pinned = !!body.pinned || undefined;
         if ('account' in body) p.account = body.account || undefined;
+        if ('group' in body) p.group = String(body.group ?? '').trim() || undefined;
         save();
         events.emit('change');
         return json(res, 200, { ok: true });

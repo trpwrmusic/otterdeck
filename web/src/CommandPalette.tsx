@@ -4,6 +4,7 @@ import type { AppState, Chat } from '../../shared/types';
 import { api, attentionOf, timeAgo } from './api';
 import { ProjectAvatar, StatusMark } from './bits';
 import { chatPlace } from './ChatsPage';
+import { fullName } from './Sidebar';
 
 export interface Command {
   id: string;
@@ -74,7 +75,7 @@ export function CommandPalette({ state, actions, onOpenProject, onOpenTab, onOpe
     const projects: Command[] = state.projects.map((p) => ({
       id: `project:${p.id}`,
       group: 'Projekte',
-      title: p.displayName,
+      title: fullName(p),
       hint: p.branch ?? p.path,
       icon: <ProjectAvatar project={p} size={20} />,
       run: () => onOpenProject(p.id),

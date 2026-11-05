@@ -69,6 +69,8 @@ export interface ProjectView {
   lastUsed: number;
   branch: string | null;
   exists: boolean;
+  /** Group it belongs to, e.g. "Heidehof" for the app and the website (null = on its own). */
+  group: string | null;
   /** Account new Claude chats in this project start with (null = default account). Existing chats keep their own. */
   account: string | null;
 }
