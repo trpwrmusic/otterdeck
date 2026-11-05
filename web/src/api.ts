@@ -96,6 +96,8 @@ export const api = {
   dirs: (path: string) => call<string[]>('GET', `/api/fs/dirs?path=${encodeURIComponent(path)}`),
   newTab: (projectId: string, kind: 'claude' | 'agy' | 'shell', resume?: string, prompt?: string, account?: string, model?: string | null, effort?: string | null) =>
     call<{ id: string }>('POST', '/api/tabs', { projectId, kind, resume, prompt, account, model: model ?? undefined, effort: effort ?? undefined }),
+  continueWith: (id: string, c: { provider: string; model: string | null; account?: string | null; effort?: string | null }) =>
+    call<{ id: string; file: string }>('POST', `/api/tabs/${id}/continue`, c),
   setEffort: (id: string, effort: string) => call('POST', `/api/tabs/${id}/effort`, { effort }),
   models: () => call<Record<Provider, ModelChoice[]>>('GET', '/api/models'),
   setModel: (id: string, model: string) => call('POST', `/api/tabs/${id}/model`, { model }),

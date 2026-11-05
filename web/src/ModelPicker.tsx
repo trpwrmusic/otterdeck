@@ -180,17 +180,109 @@ function usePopover() {
 }
 
 /** One choice in the new-chat popup: Claude per account, Antigravity. */
-interface ProviderOption {
+export interface ProviderOption {
   provider: Provider;
   account: string | null;
   label: string;
   sub: string;
 }
 
+export function providerOptions(accounts: AccountView[], agy: boolean): ProviderOption[] {
+  return [
+    ...(accounts.length ? accounts : [{ dir: '', label: 'Standard', email: null, isDefault: true }]).map((a) => ({
+      provider: 'claude' as const,
+      // The account is always named, so "Claude · Standard" doesn't fall back to the project's account.
+      account: a.dir || null,
+      label: accounts.length > 1 ? `Claude · ${a.label}` : 'Claude',
+      sub: a.email ?? 'Claude Code',
+    })),
+    ...(agy ? [{ provider: 'agy' as const, account: null, label: 'Antigravity', sub: 'Google · Gemini, Claude, GPT-OSS' }] : []),
+  ];
+}
+
+/**
+ * The popup: first the provider (Claude per account, Antigravity), then the model (and how long it
+ * thinks). Used for a new chat and for continuing a chat with another provider.
+ */
+export function ProviderDialog({
+  agy,
+  accounts,
+  title,
+  note,
+  current,
+  onPick,
+  onClose,
+}: {
+  agy: boolean;
+  accounts: AccountView[];
+  title: string;
+  note?: string;
+  current: NewChatChoice | null;
+  onPick: (c: NewChatChoice) => void;
+  onClose: () => void;
+}) {
+  const models = useModels();
+  const [step, setStep] = useState<ProviderOption | null>(null);
+  const [claudeEffort, setClaudeEffort] = usePersisted<string | null>('otter.claudeEffort', null);
+  const options = providerOptions(accounts, agy);
+  const sel = current ? options.find((o) => o.provider === current.provider && (o.account ?? null) === (current.account ?? null)) : null;
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onClose]);
+
+  return (
+    <div className="dialog-scrim" onClick={onClose}>
+      <div className="dialog newchat-dialog" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        {!step ? (
+          <>
+            <div className="dialog-title">{title}</div>
+            {note && <div className="usage-empty">{note}</div>}
+            <div className="provider-list">
+              {options.map((o) => (
+                <button key={o.provider + (o.account ?? '')} className={`provider-card${o === sel ? ' sel' : ''}`} onClick={() => setStep(o)}>
+                  <span className="provider-icon">
+                    <ProviderIcon provider={o.provider} size={18} />
+                  </span>
+                  <span className="provider-text">
+                    <span className="provider-name">{o.label}</span>
+                    <span className="provider-sub">{o.sub}</span>
+                  </span>
+                  <ChevronRight size={16} className="provider-go" />
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="dialog-title">
+              <button className="icon-btn dialog-back" onClick={() => setStep(null)} aria-label="Zurück">
+                <ChevronLeft size={18} />
+              </button>
+              {step.label}
+            </div>
+            <div className="newchat-models">
+              <ModelList
+                providers={[step.provider]}
+                models={models}
+                current={current && current.provider === step.provider && (current.account ?? null) === step.account ? current : null}
+                onPick={(next) => onPick({ ...next, account: step.account })}
+                claudeEffort={claudeEffort}
+                onClaudeEffort={setClaudeEffort}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * New chat: on the left your last choice as text (one click starts it), on the right a "+" that opens
- * a popup: first the provider (Claude per account, Antigravity), then the model. Picking a model
- * starts the chat and becomes the new last choice.
+ * the provider/model popup. Picking a model starts the chat and becomes the new last choice.
  */
 export function NewChatButton({
   agy,
@@ -209,35 +301,8 @@ export function NewChatButton({
   const [choice, setChoice] = usePersisted<NewChatChoice>('otter.newChat', { provider: 'claude', model: null, account: null });
   const c: NewChatChoice = choice.provider === 'agy' && !agy ? { provider: 'claude', model: null, account: null } : choice;
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<ProviderOption | null>(null);
-  const [claudeEffort, setClaudeEffort] = usePersisted<string | null>('otter.claudeEffort', null);
-
-  const options: ProviderOption[] = [
-    ...(accounts.length ? accounts : [{ dir: '', label: 'Standard', email: null, isDefault: true }]).map((a) => ({
-      provider: 'claude' as const,
-      // The account is always named, so "Claude · Standard" doesn't fall back to the project's account.
-      account: a.dir || null,
-      label: accounts.length > 1 ? `Claude · ${a.label}` : 'Claude',
-      sub: a.email ?? 'Claude Code',
-    })),
-    ...(agy ? [{ provider: 'agy' as const, account: null, label: 'Antigravity', sub: 'Google · Gemini, Claude, GPT-OSS' }] : []),
-  ];
-  const optionOf = (x: NewChatChoice) => options.find((o) => o.provider === x.provider && (o.account ?? null) === (x.account ?? null)) ?? options[0];
-  const current = optionOf(c);
-
-  useEffect(() => {
-    if (!open) return;
-    setStep(null);
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [open]);
-
-  const start = (next: NewChatChoice) => {
-    setChoice(next);
-    setOpen(false);
-    onStart(next);
-  };
+  const options = providerOptions(accounts, agy);
+  const current = options.find((o) => o.provider === c.provider && (o.account ?? null) === (c.account ?? null)) ?? options[0];
   const text = [current.label, c.model ? choiceLabel(c, models) : null, c.provider === 'claude' && c.effort ? EFFORT[c.effort] : null].filter(Boolean).join(' · ');
 
   return (
@@ -250,48 +315,18 @@ export function NewChatButton({
         <Plus size={big ? 18 : 15} />
       </button>
       {open && (
-        <div className="dialog-scrim" onClick={() => setOpen(false)}>
-          <div className="dialog newchat-dialog" role="dialog" aria-label="Neuer Chat" onClick={(e) => e.stopPropagation()}>
-            {!step ? (
-              <>
-                <div className="dialog-title">Neuer Chat mit …</div>
-                <div className="provider-list">
-                  {options.map((o) => (
-                    <button key={o.provider + (o.account ?? '')} className={`provider-card${o === current ? ' sel' : ''}`} onClick={() => setStep(o)}>
-                      <span className="provider-icon">
-                        <ProviderIcon provider={o.provider} size={18} />
-                      </span>
-                      <span className="provider-text">
-                        <span className="provider-name">{o.label}</span>
-                        <span className="provider-sub">{o.sub}</span>
-                      </span>
-                      <ChevronRight size={16} className="provider-go" />
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="dialog-title">
-                  <button className="icon-btn dialog-back" onClick={() => setStep(null)} aria-label="Zurück">
-                    <ChevronLeft size={18} />
-                  </button>
-                  {step.label}
-                </div>
-                <div className="newchat-models">
-                  <ModelList
-                    providers={[step.provider]}
-                    models={models}
-                    current={c.provider === step.provider && (c.account ?? null) === step.account ? c : null}
-                    onPick={(next) => start({ ...next, account: step.account })}
-                    claudeEffort={claudeEffort}
-                    onClaudeEffort={setClaudeEffort}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <ProviderDialog
+          agy={agy}
+          accounts={accounts}
+          title="Neuer Chat mit …"
+          current={c}
+          onClose={() => setOpen(false)}
+          onPick={(next) => {
+            setChoice(next);
+            setOpen(false);
+            onStart(next);
+          }}
+        />
       )}
     </div>
   );

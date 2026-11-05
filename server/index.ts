@@ -9,6 +9,7 @@ import { recordUsage, usageViews } from './usage.ts';
 import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
 import { AGY_AVAILABLE, agyConversations } from './agy.ts';
 import { models, validModel } from './models.ts';
+import { continuePrompt, exportChat } from './continue.ts';
 import { NOLA_AVAILABLE, projectFor, claudePrompt, moveTask, projectTasks, searchTasks, setSubtask, taskDetail } from './nola.ts';
 import { isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
@@ -686,6 +687,26 @@ const server = http.createServer(async (req, res) => {
     if (parts[1] === 'tabs' && parts[2]) {
       const id = parts[2];
       if (!tabs.has(id)) return json(res, 404, { error: 'not found' });
+      // Chat mit anderem Anbieter fortsetzen (continue.ts)
+      if (parts[3] === 'continue' && method === 'POST') {
+        const body = await readBody(req);
+        const tab = tabs.get(id)!;
+        const project = data.projects.find((p) => p.id === tab.rec.projectId);
+        if (!project) return json(res, 404, { error: 'Projekt fehlt.' });
+        const kind = body.provider === 'agy' ? 'agy' : 'claude';
+        if (kind === 'agy' && !AGY_AVAILABLE) return json(res, 400, { error: 'Die Antigravity-CLI (agy) ist nicht installiert.' });
+        try {
+          const file = exportChat(tab, project.name || path.basename(project.path));
+          const from = tab.rec.kind === 'agy' ? 'Antigravity' : 'Claude';
+          const model = await validModel(kind, body.model);
+          const effort = kind === 'claude' && typeof body.effort === 'string' && EFFORTS.has(body.effort) ? body.effort : undefined;
+          const account = kind === 'claude' ? accounts.find((a) => typeof body.account === 'string' && a.dir.toLowerCase() === body.account.toLowerCase())?.dir : undefined;
+          const next = createTab(project.id, kind, undefined, continuePrompt(file, from), account, { ...(model ? { model } : {}), ...(effort ? { effort } : {}) });
+          return json(res, 200, { id: next.rec.id, file });
+        } catch (err) {
+          return json(res, 400, { error: (err as Error).message });
+        }
+      }
       if (parts[3] === 'effort' && method === 'POST') {
         const level = String((await readBody(req)).effort ?? '');
         if (!EFFORTS.has(level)) return json(res, 400, { error: 'Diese Stufe gibt es nicht.' });

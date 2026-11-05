@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CloudUpload, Orbit, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
+import { CloudUpload, MoreHorizontal, Orbit, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
 import type { AccountView, RemoteView, ServerView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
 import { ContextMenu, Kbd, ProjectAvatar, StatusMark } from './bits';
@@ -7,7 +7,7 @@ import { ChangesPanel } from './ChangesPanel';
 import { UsageCard } from './UsageCard';
 import { RemoteCard } from './RemoteCard';
 import { HandoffDialog, ServerCard } from './ServerParts';
-import { NewChatButton } from './ModelPicker';
+import { NewChatButton, ProviderDialog } from './ModelPicker';
 import { COMMENTS_LEAD, DiffView, FileView, formatComments, type ReviewComment } from './DiffView';
 import { TerminalView } from './TerminalView';
 import { ChatView } from './chat/ChatView';
@@ -86,6 +86,9 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
     return () => window.removeEventListener('otter:toggle-view', flip);
   });
   const [accountMenu, setAccountMenu] = useState<{ x: number; y: number } | null>(null);
+  /** "⋯" at the top right of a chat, and the tab whose chat goes on with another provider. */
+  const [moreMenu, setMoreMenu] = useState<{ x: number; y: number } | null>(null);
+  const [continueFor, setContinueFor] = useState<string | null>(null);
   const multi = accounts.length > 1;
   const accountOf = (dir: string | null | undefined) => accounts.find((a) => a.dir.toLowerCase() === (dir ?? '').toLowerCase());
   const projectDefault = accountOf(project.account) ?? accounts.find((a) => a.isDefault);
@@ -195,6 +198,54 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
                 checked: a.dir === projectDefault?.dir,
                 onClick: () => open('claude', undefined, a.dir),
               }))}
+            />
+          )}
+          {current && (current.kind === 'claude' || current.kind === 'agy') && !currentView && (
+            <button
+              className="icon-btn more-btn"
+              title="Mehr"
+              aria-label="Mehr"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setMoreMenu({ x: r.right - 250, y: r.bottom + 6 });
+              }}
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          )}
+          {moreMenu && current && (
+            <ContextMenu
+              x={moreMenu.x}
+              y={moreMenu.y}
+              onClose={() => setMoreMenu(null)}
+              items={[
+                { label: 'Chat mit anderem Anbieter fortsetzen …', onClick: () => setContinueFor(current.id) },
+                {
+                  label: currentMode === 'chat' ? 'Als Terminal ansehen' : 'Als Chat ansehen',
+                  separatorBefore: true,
+                  onClick: () => setViewOf(current.id, currentMode === 'chat' ? 'terminal' : 'chat'),
+                },
+                { label: 'Sitzung neu starten', onClick: () => api.restartTab(current.id) },
+                { label: 'Tab schließen', danger: true, onClick: () => close(current) },
+              ]}
+            />
+          )}
+          {continueFor && (
+            <ProviderDialog
+              agy={!!agy}
+              accounts={accounts}
+              title="Chat fortsetzen mit …"
+              note="Der bisherige Chat geht als Datei mit. Der neue Anbieter liest ihn und macht an derselben Stelle weiter; der alte Tab bleibt offen."
+              current={null}
+              onClose={() => setContinueFor(null)}
+              onPick={(c) => {
+                const from = continueFor;
+                setContinueFor(null);
+                api
+                  .continueWith(from, c)
+                  .then(({ id }) => setTimeout(() => onActivate(id), 300))
+                  .catch((err) => window.dispatchEvent(new CustomEvent('otter:toast', { detail: err.message })));
+              }}
             />
           )}
           <button
