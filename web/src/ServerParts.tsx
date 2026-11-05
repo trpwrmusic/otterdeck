@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CloudUpload, ExternalLink, Server, Undo2 } from 'lucide-react';
 import type { AppState, HandoffView, ServerView } from '../../shared/types';
-import { api } from './api';
+import { api, usePersisted } from './api';
 import { StatusMark } from './bits';
 
 const toast = (text: string) => window.dispatchEvent(new CustomEvent('otter:toast', { detail: text }));
@@ -27,6 +27,7 @@ const STATUS: Record<string, string> = {
 
 export function ServerCard({ server, projectId, onActivate }: { server: ServerView | null; projectId: string; onActivate: (tabId: string) => void }) {
   const [url, setUrl] = useState('https://mc-panel.tailabc123.ts.net:4747');
+  const [unfolded, setUnfolded] = usePersisted('otter.card.server', false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,15 +85,17 @@ export function ServerCard({ server, projectId, onActivate }: { server: ServerVi
     );
   }
 
+  // Folded to one line once everything is set up; open while there is a step to do.
+  const folded = !unfolded && !!server?.tokenAt && !error && server.reachable !== false && Math.round((server.tokenAt + 365 * 864e5 - Date.now()) / 864e5) >= 21;
   return (
-    <section className="usage-card" aria-label="Server">
-      <div className="usage-head">
+    <section className={`usage-card fold${folded ? ' folded' : ''}`} aria-label="Server">
+      <div className="usage-head" role="button" tabIndex={0} onClick={() => setUnfolded(!unfolded)} title={folded ? 'Aufklappen' : 'Einklappen'}>
         <span className="usage-title">
           <Server size={14} /> Server
         </span>
         <span className={`usage-account${server?.reachable ? ' on' : ''}`}>{server ? new URL(server.url).hostname.split('.')[0] : 'keiner'}</span>
       </div>
-      {body}
+      {!folded && body}
       {error && <div className="remote-error">{error}</div>}
     </section>
   );

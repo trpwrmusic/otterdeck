@@ -12,6 +12,8 @@ import type {
   PermissionMode,
   Suggestion,
   TabView,
+  NolaTask,
+  NolaTaskDetail,
 } from '../../shared/types';
 
 /** Fires "changes" (detail = projectId) when files in a watched project changed. */
@@ -56,6 +58,13 @@ export function pickImage(): Promise<File | null> {
 }
 
 export const api = {
+  nolaProject: (projectId: string, fresh = false) =>
+    call<{ card: NolaTask | null; todos: NolaTask[] }>('GET', `/api/nola/project/${projectId}${fresh ? '?fresh=1' : ''}`),
+  nolaTask: (id: number) => call<NolaTaskDetail>('GET', `/api/nola/task/${id}`),
+  nolaSubtask: (id: number, index: number, checked: boolean) => call<NolaTaskDetail>('POST', `/api/nola/task/${id}/subtask`, { index, checked }),
+  nolaMove: (id: number, to: 'done' | 'doing' | 'open') => call<NolaTaskDetail>('POST', `/api/nola/task/${id}/move`, { to }),
+  nolaClaude: (id: number, projectId: string) => call<{ tabId: string }>('POST', `/api/nola/task/${id}/claude`, { projectId }),
+  nolaSearch: (q: string) => call<NolaTask[]>('GET', `/api/nola/search?q=${encodeURIComponent(q)}`),
   setServer: (url: string) => call('POST', '/api/server', { url }),
   connectServer: (projectId: string) => call<{ tabId: string }>('POST', '/api/server/connect', { projectId }),
   handOff: (tabId: string, prompt: string) => call('POST', `/api/tabs/${tabId}/handoff`, { prompt }),

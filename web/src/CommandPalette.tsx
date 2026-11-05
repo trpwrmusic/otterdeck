@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CornerDownLeft, FolderGit2, History, Search } from 'lucide-react';
-import type { AppState, Chat } from '../../shared/types';
+import { CornerDownLeft, FolderGit2, History, ListTodo, Search } from 'lucide-react';
+import type { AppState, Chat, NolaTask } from '../../shared/types';
 import { api, attentionOf, timeAgo } from './api';
 import { ProjectAvatar, StatusMark } from './bits';
 import { chatPlace } from './ChatsPage';
@@ -8,7 +8,7 @@ import { fullName } from './Sidebar';
 
 export interface Command {
   id: string;
-  group: 'Aktionen' | 'Sitzungen' | 'Projekte' | 'Chats';
+  group: 'Aktionen' | 'Sitzungen' | 'Projekte' | 'Chats' | 'NOLA';
   title: string;
   hint?: string;
   keys?: string;
@@ -42,10 +42,15 @@ interface Props {
   onOpenProject: (id: string) => void;
   onOpenTab: (id: string) => void;
   onOpenChat: (chat: Chat) => void;
+  onOpenNola?: (task: NolaTask & { projectId: string | null }) => void;
   onClose: () => void;
 }
 
-export function CommandPalette({ state, actions, onOpenProject, onOpenTab, onOpenChat, onClose }: Props) {
+export function CommandPalette({ state, actions, onOpenProject, onOpenTab, onOpenChat, onOpenNola, onClose }: Props) {
+  const [nolaTasks, setNolaTasks] = useState<(NolaTask & { projectId: string | null })[]>([]);
+  useEffect(() => {
+    if (state.nola) api.nolaSearch('').then((t) => setNolaTasks(t as any)).catch(() => {});
+  }, [state.nola]);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -88,14 +93,22 @@ export function CommandPalette({ state, actions, onOpenProject, onOpenTab, onOpe
       icon: <History size={15} />,
       run: () => onOpenChat(c),
     }));
-    return [...actions, ...sessions, ...projects, ...past];
-  }, [state, actions, chats, onOpenProject, onOpenTab, onOpenChat]);
+    const nola: Command[] = nolaTasks.map((t) => ({
+      id: `nola:${t.id}`,
+      group: 'NOLA',
+      title: t.title,
+      hint: [t.boardName, t.column, t.projectId ? project(t.projectId)?.displayName : null].filter(Boolean).join(' · '),
+      icon: <ListTodo size={15} />,
+      run: () => onOpenNola?.(t),
+    }));
+    return [...actions, ...sessions, ...projects, ...past, ...nola];
+  }, [state, actions, chats, nolaTasks, onOpenProject, onOpenTab, onOpenChat, onOpenNola]);
 
   const shown = useMemo(() => {
     const query = q.trim();
     if (!query) {
       // Without a query: actions, then what's going on, then projects; past chats only when searched.
-      return commands.filter((c) => c.group !== 'Chats').slice(0, 40);
+      return commands.filter((c) => c.group !== 'Chats' && c.group !== 'NOLA').slice(0, 40);
     }
     const hits = commands
       .map((c) => ({ c, s: Math.max(score(c.title, query), score(c.hint ?? '', query) * 0.6) }))
@@ -129,7 +142,7 @@ export function CommandPalette({ state, actions, onOpenProject, onOpenTab, onOpe
           <input
             autoFocus
             value={q}
-            placeholder="Projekt, Sitzung, Chat oder Befehl"
+            placeholder={state.nola ? 'Projekt, Sitzung, Chat, NOLA-Aufgabe oder Befehl' : 'Projekt, Sitzung, Chat oder Befehl'}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {

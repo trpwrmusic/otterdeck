@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ChevronRight, File, Folder, FolderOpen, RefreshCw }
 import type { ChangedFile, Changes, CompareMode, DirEntry, ProjectView } from '../../shared/types';
 import { api, useOnFileChange, usePersisted } from './api';
 import { Glide } from './Glide';
+import { NolaPanel } from './NolaPanel';
 
 const STATUS_LABEL: Partial<Record<ChangedFile['status'], string>> = {
   added: 'neu',
@@ -21,10 +22,18 @@ interface Props {
   activePath: string | null;
   /** Shown below the list (usage limits; later the phone connection). */
   footer?: ReactNode;
+  /** NOLA tab (laptop only). */
+  nola?: boolean;
+  onActivate?: (tabId: string) => void;
+  focusTask?: number | null;
 }
 
 export function ChangesPanel(props: Props) {
-  const [tab, setTab] = usePersisted<'changes' | 'files'>('otter.panelTab', 'changes');
+  const [stored, setTab] = usePersisted<'changes' | 'files' | 'tasks'>('otter.panelTab', 'changes');
+  const tab = stored === 'tasks' && !props.nola ? 'changes' : stored;
+  useEffect(() => {
+    if (props.focusTask) setTab('tasks');
+  }, [props.focusTask, setTab]);
   return (
     <aside className="side-panel">
       <div className="segmented panel-switch">
@@ -35,8 +44,21 @@ export function ChangesPanel(props: Props) {
         <button className={tab === 'files' ? 'on' : ''} onClick={() => setTab('files')}>
           Dateien
         </button>
+        {props.nola && (
+          <button className={tab === 'tasks' ? 'on' : ''} onClick={() => setTab('tasks')}>
+            Aufgaben
+          </button>
+        )}
       </div>
-      <div className="panel-body">{tab === 'changes' ? <ChangeList {...props} /> : <FileTree {...props} />}</div>
+      <div className="panel-body">
+        {tab === 'changes' ? (
+          <ChangeList {...props} />
+        ) : tab === 'files' ? (
+          <FileTree {...props} />
+        ) : (
+          <NolaPanel project={props.project} onActivate={(id) => props.onActivate?.(id)} focusTask={props.focusTask} />
+        )}
+      </div>
       {props.footer}
     </aside>
   );

@@ -28,6 +28,9 @@ interface Props {
   isRemote?: boolean;
   server?: ServerView | null;
   serverMode?: boolean;
+  nola?: boolean;
+  /** A NOLA task to show in the side panel (from the search). */
+  focusTask?: number | null;
   activeTab: string | null; // null = start page
   onActivate: (tabId: string | null) => void;
 }
@@ -42,8 +45,13 @@ function tabAttention(t: TabView) {
 const RUNNING = new Set(['starting', 'ready', 'working', 'waiting', 'done']);
 const fileName = (p: string) => p.split('/').pop() ?? p;
 
-export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, server, serverMode, activeTab, onActivate }: Props) {
+export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, server, serverMode, nola, focusTask, activeTab, onActivate }: Props) {
   const [handoffTab, setHandoffTab] = useState<string | null>(null);
+  // A NOLA task picked in the search shows up in the side panel, so the panel has to be open.
+  useEffect(() => {
+    if (focusTask) setPanelOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTask]);
   const [views, setViews] = usePersisted<ViewTab[]>(`otter.views.${project.id}`, []);
   const [comments, setComments] = usePersisted<ReviewComment[]>(`otter.comments.${project.id}`, []);
   const [panelOpen, setPanelOpen] = usePersisted('otter.panel', true);
@@ -312,6 +320,9 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
             onOpenDiff={(p) => openView('diff', p)}
             onOpenFile={(p) => openView('file', p)}
             activePath={currentView?.path ?? null}
+            nola={nola}
+            focusTask={focusTask}
+            onActivate={(id) => setTimeout(() => onActivate(id), 300)}
             footer={
               <>
               <UsageCard

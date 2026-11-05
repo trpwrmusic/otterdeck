@@ -39,6 +39,8 @@ export function App() {
   // On a phone the project list comes first.
   const [navOpen, setNavOpen] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [palette, setPalette] = useState(false);
+  /** NOLA task to unfold in the side panel (picked in the search). */
+  const [focusTask, setFocusTask] = useState<number | null>(null);
   const selectProject = useCallback(
     (id: string) => {
       setView('project');
@@ -327,6 +329,8 @@ export function App() {
           isRemote={!!state.isRemote}
           server={state.server}
           serverMode={state.serverMode}
+          nola={state.nola}
+          focusTask={focusTask}
           activeTab={activeTab}
           onActivate={(id) => activate(project.id, id)}
         />
@@ -340,6 +344,12 @@ export function App() {
           onOpenChat={(chat) =>
             chat.projectId ? openChat(chat, chat.projectId) : (setView('chats'), setToast({ text: 'Zieh den Chat auf ein Projekt, um ihn dort fortzusetzen.' }))
           }
+          onOpenNola={(t) => {
+            if (t.projectId) {
+              selectProject(t.projectId);
+              setFocusTask(t.id);
+            } else if (t.url) window.open(t.url, '_blank', 'noopener');
+          }}
           onClose={() => setPalette(false)}
         />
       )}

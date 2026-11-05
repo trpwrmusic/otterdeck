@@ -7,6 +7,7 @@ import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/t
 import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, SERVER_MODE, UPLOAD_DIR, WEB_DIST } from './config.ts';
 import { recordUsage, usageViews } from './usage.ts';
 import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
+import { NOLA_AVAILABLE, projectFor, claudePrompt, moveTask, projectTasks, searchTasks, setSubtask, taskDetail } from './nola.ts';
 import { isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
@@ -122,6 +123,7 @@ function state(): AppState {
     remote: remoteView(),
     server: serverView(),
     serverMode: SERVER_MODE,
+    nola: NOLA_AVAILABLE,
     version: VERSION,
     update: { ...update },
   };
@@ -353,6 +355,52 @@ const server = http.createServer(async (req, res) => {
         }
       } catch (err) {
         return json(res, 409, { error: (err as Error).message });
+      }
+    }
+
+    // ---------- NOLA (nola.ts) ----------
+    if (parts[1] === 'nola') {
+      try {
+        if (parts[2] === 'search') {
+          const list = data.projects.map((p) => ({ id: p.id, name: p.name ?? '', group: p.group ?? null, folder: path.basename(p.path), nolaCard: p.nolaCard }));
+          const found = await searchTasks(url.searchParams.get('q') ?? '');
+          return json(res, 200, found.map((t) => ({ ...t, projectId: projectFor(t, list)?.id ?? null })));
+        }
+        if (parts[2] === 'project' && parts[3]) {
+          const p = data.projects.find((x) => x.id === parts[3]);
+          if (!p) return json(res, 404, { error: 'Projekt fehlt.' });
+          if (method === 'PATCH') {
+            const card = Number((await readBody(req)).card);
+            p.nolaCard = card > 0 ? card : undefined;
+            save();
+          }
+          return json(res, 200, await projectTasks({ name: p.name ?? '', group: p.group ?? null, folder: path.basename(p.path), nolaCard: p.nolaCard }, url.searchParams.has('fresh')));
+        }
+        if (parts[2] === 'task' && parts[3]) {
+          const id = Number(parts[3]);
+          if (!parts[4]) return json(res, 200, await taskDetail(id));
+          if (parts[4] === 'subtask' && method === 'POST') {
+            const body = await readBody(req);
+            await setSubtask(id, Number(body.index), !!body.checked);
+            return json(res, 200, await taskDetail(id));
+          }
+          if (parts[4] === 'move' && method === 'POST') {
+            const to = String((await readBody(req)).to);
+            await moveTask(id, to === 'done' ? 'done' : to === 'doing' ? 'doing' : 'open');
+            return json(res, 200, await taskDetail(id));
+          }
+          if (parts[4] === 'claude' && method === 'POST') {
+            const projectId = String((await readBody(req)).projectId);
+            const p = data.projects.find((x) => x.id === projectId);
+            if (!p) return json(res, 404, { error: 'Projekt fehlt.' });
+            const { prompt } = await claudePrompt(id);
+            const tab = createTab(p.id, 'claude', undefined, prompt);
+            return json(res, 200, { tabId: tab.rec.id });
+          }
+        }
+        return json(res, 404, { error: 'not found' });
+      } catch (err) {
+        return json(res, 502, { error: (err as Error).message });
       }
     }
 

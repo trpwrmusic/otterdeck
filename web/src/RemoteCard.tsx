@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Smartphone } from 'lucide-react';
 import qrcode from 'qrcode-generator';
 import type { RemoteView } from '../../shared/types';
-import { api } from './api';
+import { api, usePersisted } from './api';
 
 function Qr({ text }: { text: string }) {
   const svg = useMemo(() => {
@@ -19,6 +19,7 @@ export function RemoteCard({ remote, isRemote }: { remote: RemoteView; isRemote:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
+  const [unfolded, setUnfolded] = usePersisted('otter.card.remote', false);
 
   const toggle = async (on: boolean) => {
     setBusy(true);
@@ -83,15 +84,17 @@ export function RemoteCard({ remote, isRemote }: { remote: RemoteView; isRemote:
       </>
     );
 
+  // Folded to one line unless there's something to read (an error) or you opened it.
+  const folded = !unfolded && !error && !remote.error;
   return (
-    <section className="usage-card remote-card" aria-label="Handy-Zugang">
-      <div className="usage-head">
+    <section className={`usage-card remote-card fold${folded ? ' folded' : ''}`} aria-label="Handy-Zugang">
+      <div className="usage-head" role="button" tabIndex={0} onClick={() => setUnfolded(!unfolded)} title={folded ? 'Aufklappen' : 'Einklappen'}>
         <span className="usage-title">
           <Smartphone size={14} /> Handy
         </span>
         <span className={`usage-account${remote.enabled ? ' on' : ''}`}>{remote.enabled ? (remote.url ?? '').replace('https://', '') : 'aus'}</span>
       </div>
-      {body}
+      {!folded && body}
       {(error || remote.error) && <div className="remote-error">{error ?? remote.error}</div>}
     </section>
   );

@@ -1140,3 +1140,200 @@
     opacity: 0;
   }
 }
+
+/* ---------- NOLA tab in the side panel ---------- */
+
+.nola-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.nola-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 6px 4px;
+}
+.nola-label {
+  font-size: 12px;
+  color: var(--faint);
+  font-weight: 500;
+}
+.nola-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+.nola-task {
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+.nola-task:hover,
+.nola-task.open {
+  background: var(--raised);
+}
+.nola-task.card {
+  background: var(--raised);
+  margin-bottom: 6px;
+}
+.nola-task.card .nola-title {
+  font-weight: 600;
+}
+.nola-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--text);
+  font: 13px/1.35 var(--font);
+}
+.nola-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1.5px solid var(--control);
+  color: #0b0b0c;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s var(--spring);
+}
+.nola-check:hover {
+  border-color: var(--muted);
+}
+.nola-check:active {
+  transform: scale(0.88);
+}
+.nola-check.on {
+  background: var(--positive);
+  border-color: var(--positive);
+}
+.nola-title {
+  flex: 1;
+  min-width: 0;
+}
+.nola-task.done .nola-title {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+.nola-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--faint);
+}
+.nola-due.over {
+  color: var(--waiting);
+}
+.nola-chev {
+  transition: transform 0.2s var(--spring);
+}
+.nola-chev.rot {
+  transform: rotate(90deg);
+}
+.nola-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 10px 10px 36px;
+}
+.nola-task.card .nola-body {
+  padding-left: 10px;
+}
+.nola-desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.nola-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.nola-tag,
+.nola-col {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 99px;
+  background: var(--active);
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--muted);
+}
+.nola-col {
+  background: none;
+  color: var(--faint);
+}
+.nola-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nola-subtask {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.nola-subtask input {
+  margin-top: 2px;
+  accent-color: var(--positive);
+}
+.nola-subtask.on span {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+.nola-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.nola-actions .copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  line-height: 26px;
+}
+.nola-none {
+  padding: 4px 10px;
+}
+.nola-done-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* side-panel cards that fold to one line */
+.usage-card.fold .usage-head {
+  cursor: pointer;
+  user-select: none;
+}
+.usage-card.folded {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.usage-card.folded:hover {
+  background: #1c1c1f;
+}

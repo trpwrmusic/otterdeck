@@ -14,6 +14,8 @@ export interface ProjectRecord {
   account?: string;
   /** Own icon file in ICON_DIR (otherwise one found in the folder). */
   icon?: string;
+  /** NOLA card of this project, when the name alone doesn't find it. */
+  nolaCard?: number;
   /** Set on the server: this project is a task handed over from the laptop. */
   handoff?: { id: string; base: string; from: string };
   addedAt: number;

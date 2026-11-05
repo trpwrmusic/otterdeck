@@ -79,6 +79,28 @@ export interface ProjectView {
   icon: string | null;
 }
 
+/** A task in NOLA (Samu's Kanban app). */
+export interface NolaTask {
+  id: number;
+  title: string;
+  boardId: number;
+  boardName: string;
+  column: string;
+  done: boolean;
+  due: string | null;
+  overdue: boolean;
+  tags: string[];
+  subtasksDone: number;
+  subtasksTotal: number;
+  url: string | null;
+}
+
+export interface NolaTaskDetail extends NolaTask {
+  description: string;
+  subtasks: { index: number; text: string; checked: boolean }[];
+  comments: { author: string; body: string; at: string | null }[];
+}
+
 /** A task handed from the laptop to the server, as the laptop sees it. */
 export interface HandoffView {
   id: string;
@@ -152,6 +174,8 @@ export interface AppState {
   server: ServerView | null;
   /** This Otterdeck is itself a server (Linux, OTTER_SERVER=1). */
   serverMode: boolean;
+  /** NOLA can be reached (laptop with the nola.ps1 helper). */
+  nola: boolean;
   /** This window is the remote page (phone), not the PC. */
   isRemote?: boolean;
   /** Code version the server runs; the window reloads when it changes. */
