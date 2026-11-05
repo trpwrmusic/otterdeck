@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { ArrowUp, Brain, ChevronRight, FileText, ImageIcon, Plus, Square, SquareTerminal, X } from 'lucide-react';
 import type { ChatItem, ChatServerMsg, TabView } from '../../../shared/types';
 import { api, chatUrl, usePersisted } from '../api';
-import { renderMarkdown } from './markdown';
+import { handleCopyClick, renderMarkdown } from './markdown';
 import { EditCard, isEdit, StepRow, TodoCard } from './ToolCard';
 import { PromptCard } from './PromptCard';
 import { formatSize, ModeMenu, type Attachment } from './Composer';
@@ -259,6 +259,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
       <div
         className="chat-scroll"
         ref={scroller}
+        onClick={handleCopyClick}
         onScroll={(e) => {
           const el = e.currentTarget;
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
@@ -286,7 +287,14 @@ export function ChatView({ tab, onShowTerminal }: Props) {
                   </div>
                 </div>
               )}
-              {b.k === 'item' && b.item.k === 'text' && <div className="md msg-claude" dangerouslySetInnerHTML={{ __html: renderMarkdown(b.item.text) }} />}
+              {b.k === 'item' && b.item.k === 'text' && (
+                <div className="msg-claude-wrap">
+                  <div className="md msg-claude" dangerouslySetInnerHTML={{ __html: renderMarkdown(b.item.text) }} />
+                  <button className="copy-btn msg-copy" data-copy={encodeURIComponent(b.item.text)} title="Antwort kopieren">
+                    Kopieren
+                  </button>
+                </div>
+              )}
               {b.k === 'item' && b.item.k === 'thinking' && <Thinking text={b.item.text} />}
               {b.k === 'item' && b.item.k === 'note' && <div className="chat-note">{b.item.text}</div>}
             </Fragment>

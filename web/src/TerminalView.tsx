@@ -59,6 +59,19 @@ const LIGHT: ITheme = {
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
+/**
+ * Text copied from the terminal: without the indentation every line shares (Claude indents its
+ * answers) and without trailing spaces, so a mail pastes cleanly.
+ */
+export function cleanCopy(text: string) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n').map((l) => l.replace(/\s+$/, ''));
+  // Claude's answer marker on the first line ("● Hallo …") is not part of the text.
+  if (lines[0]) lines[0] = lines[0].replace(/^\s*[●⏺]\s?/, (m) => ' '.repeat(m.length));
+  const indents = lines.filter((l) => l.trim()).map((l) => l.match(/^ */)![0].length);
+  const common = indents.length ? Math.min(...indents) : 0;
+  return lines.map((l) => l.slice(common)).join('\n').replace(/^\n+|\n+$/g, '');
+}
+
 export function TerminalView({ tab, active }: { tab: TabView; active: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -96,7 +109,7 @@ export function TerminalView({ tab, active }: { tab: TabView; active: boolean })
       if (e.type !== 'keydown') return true;
       if (isAppShortcut(e)) return false;
       if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c' && term.hasSelection()) {
-        navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+        navigator.clipboard.writeText(cleanCopy(term.getSelection())).catch(() => {});
         term.clearSelection();
         return false;
       }

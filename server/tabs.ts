@@ -21,6 +21,17 @@ const { SerializeAddon } = serialize as unknown as typeof import('@xterm/addon-s
 export const events = new EventEmitter();
 const changed = () => events.emit('change');
 
+/**
+ * Added to every Claude session in Otterdeck: mails go into a ```mail block, which the chat view
+ * shows as a card with copy buttons (copying from the terminal would carry its indentation along).
+ */
+const CHAT_NOTE = [
+  'Diese Sitzung läuft in Otterdeck. Dessen Chat-Ansicht zeigt Codeblöcke mit der Sprache "mail" als E-Mail-Karte mit Kopier-Knöpfen.',
+  'Wenn du eine E-Mail oder eine andere Nachricht vorbereitest, die der Nutzer kopieren und selbst abschicken soll (Mail, Antwortentwurf, Chat- oder Kundennachricht),',
+  'gib genau diesen Text als Codeblock mit der Sprache mail aus: optional als erste Zeilen "Betreff: …" und "An: …", dann eine Leerzeile, dann der Text ohne Einrückung.',
+  'Nichts anderes kommt in diesen Block; Erklärungen davor oder danach als normaler Text.',
+].join(' ');
+
 // Variables a parent Claude Code session sets (when Otterdeck itself was started from one);
 // a claude in our tabs must not inherit them, or it thinks it is a child session.
 const STRIP_ENV = new Set([
@@ -124,7 +135,7 @@ class Tab {
       if (path.resolve(account).toLowerCase() === path.join(HOME, '.claude').toLowerCase()) delete env.CLAUDE_CONFIG_DIR;
       else env.CLAUDE_CONFIG_DIR = account;
       shareMemory(project.path, account);
-      args = ['--settings', HOOK_SETTINGS, '--add-dir', UPLOAD_DIR];
+      args = ['--settings', HOOK_SETTINGS, '--add-dir', UPLOAD_DIR, '--append-system-prompt', CHAT_NOTE];
       // For tests, e.g. OTTER_CLAUDE_ARGS="--permission-mode default" to see permission prompts.
       if (process.env.OTTER_CLAUDE_ARGS) args.push(...process.env.OTTER_CLAUDE_ARGS.split(/\s+/).filter(Boolean));
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);

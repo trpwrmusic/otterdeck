@@ -804,3 +804,100 @@
   background: var(--active);
   color: var(--text);
 }
+
+/* ---------- copy buttons, mail card ---------- */
+
+.copy-btn {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font: 500 12px var(--font);
+  color: var(--muted);
+  background: var(--active);
+  transition: background 0.15s, color 0.15s, transform 0.1s var(--spring);
+}
+.copy-btn:hover {
+  background: #26262a;
+  color: var(--text);
+}
+.copy-btn:active {
+  transform: scale(0.95);
+}
+.copy-btn.primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.copy-btn.done {
+  background: rgba(95, 208, 138, 0.16);
+  color: var(--positive);
+}
+
+.code-wrap {
+  position: relative;
+  margin: 0 0 10px;
+}
+.code-wrap .md-code {
+  margin: 0;
+}
+.code-wrap .copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+}
+.code-wrap:hover .copy-btn,
+.code-wrap .copy-btn.done {
+  opacity: 1;
+}
+
+.msg-claude-wrap {
+  position: relative;
+}
+.msg-copy {
+  position: absolute;
+  right: 0;
+  bottom: -30px;
+  opacity: 0;
+}
+.msg-claude-wrap:hover .msg-copy,
+.msg-copy.done {
+  opacity: 1;
+}
+
+.mail-card {
+  margin: 4px 0 12px;
+  border-radius: 12px;
+  background: #0f0f11;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.mail-head {
+  padding: 12px 16px 10px;
+  background: var(--raised);
+}
+.mail-to {
+  font-size: 12px;
+  color: var(--faint);
+  margin-bottom: 2px;
+}
+.mail-subject {
+  font-weight: 600;
+  color: var(--text);
+}
+.mail-subject.quiet {
+  color: var(--muted);
+  font-weight: 500;
+}
+.mail-body {
+  padding: 14px 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  color: var(--text);
+  user-select: text;
+}
+.mail-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 12px 16px;
+}
