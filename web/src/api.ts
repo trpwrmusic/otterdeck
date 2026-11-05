@@ -63,6 +63,7 @@ export const api = {
   files: (id: string, path: string) => call<DirEntry[]>('GET', `/api/projects/${id}/files?path=${encodeURIComponent(path)}`),
   file: (id: string, path: string) => call<FileContent>('GET', `/api/projects/${id}/file?path=${encodeURIComponent(path)}`),
   rawUrl: (id: string, path: string) => `/api/projects/${id}/raw?path=${encodeURIComponent(path)}`,
+  restart: (cont?: { tab: string; prompt: string }) => call('POST', '/api/restart', cont ?? {}),
   closeTab: (id: string) => call('DELETE', `/api/tabs/${id}`),
   restartTab: (id: string, fresh = false) => call('POST', `/api/tabs/${id}/restart`, { fresh }),
   seen: (id: string) => call('POST', `/api/tabs/${id}/seen`, {}),
@@ -70,6 +71,8 @@ export const api = {
 
 const wsUrl = (path: string) => `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${path}`;
 export const termUrl = (tab: string) => wsUrl(`/ws/term?tab=${encodeURIComponent(tab)}`);
+
+let firstVersion: string | null = null;
 
 /** Live app state, pushed by the server. Reconnects on its own. */
 export function useAppState() {
@@ -84,7 +87,12 @@ export function useAppState() {
       ws.onopen = () => setConnected(true);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data) as EventMsg;
-        if (msg.t === 'state') setState(msg.state);
+        if (msg.t === 'state') {
+          // A restarted server with new code: load the matching UI.
+          if (firstVersion && msg.state.version !== firstVersion) return location.reload();
+          firstVersion ??= msg.state.version;
+          setState(msg.state);
+        }
         else if (msg.t === 'changes') fileChanges.dispatchEvent(new CustomEvent('changes', { detail: msg.projectId }));
       };
       ws.onclose = () => {

@@ -10,7 +10,8 @@ import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
 import { shareMemory } from './memory.ts';
 import { data, flush, newId, samePath, save } from './store.ts';
-import { closeTab, createTab, events, killAll, markSeen, restartTab, tabs } from './tabs.ts';
+import { closeTab, createTab, events, killAll, markSeen, restartTab, resumePending, tabs } from './tabs.ts';
+import { respawn, update, VERSION, watchForUpdates } from './update.ts';
 import { fileEvents, keepWatching } from './watch.ts';
 
 writeHookSettings();
@@ -22,6 +23,7 @@ fileEvents.on('changed', (projectId: string) => {
 });
 // One shared memory for every project (see memory.ts).
 for (const p of data.projects) shareMemory(p.path, p.account || DEFAULT_CLAUDE_DIR);
+resumePending();
 
 // ---------- git branch, polled ----------
 
@@ -81,6 +83,8 @@ function state(): AppState {
     projects: data.projects.map(projectView),
     tabs: data.tabs.map((r) => tabs.get(r.id)?.view()).filter((t) => !!t),
     accounts,
+    version: VERSION,
+    update: { ...update },
   };
 }
 
@@ -217,6 +221,12 @@ const server = http.createServer(async (req, res) => {
     if (!trusted(req, method !== 'GET')) return json(res, 403, { error: 'origin' });
 
     if (url.pathname === '/api/ping') return json(res, 200, { app: 'otterdeck' });
+    if (url.pathname === '/api/restart' && method === 'POST') {
+      const body = await readBody(req);
+      const cont = typeof body.tab === 'string' && typeof body.prompt === 'string' ? { tab: body.tab, prompt: body.prompt } : undefined;
+      requestRestart(cont);
+      return json(res, 200, { ok: true });
+    }
     if (url.pathname === '/api/shutdown' && method === 'POST') {
       json(res, 200, { ok: true });
       return setTimeout(shutdown, 100);
@@ -419,19 +429,52 @@ events.on('change', () => {
   }, 80);
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`Otterdeck läuft auf http://${HOST}:${PORT}`);
-});
+// After a restart the old server may still hold the port for a moment.
+let listenTries = process.env.OTTER_RESTARTED === '1' ? 60 : 0;
+const listen = () => server.listen(PORT, HOST, () => console.log(`Otterdeck läuft auf http://${HOST}:${PORT}`));
 server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE' && listenTries-- > 0) return void setTimeout(listen, 250);
   if (err.code === 'EADDRINUSE') console.error(`Port ${PORT} ist belegt. Läuft Otterdeck schon?`);
   else console.error(err);
   process.exit(1);
 });
+listen();
 
 function shutdown() {
   flush();
   killAll();
   process.exit(0);
+}
+
+// ---------- restart into a new version ----------
+
+watchForUpdates(() => events.emit('change'));
+let restartTimer: NodeJS.Timeout | null = null;
+
+/** Restarts as soon as no Claude is in the middle of a turn. */
+function requestRestart(cont?: { tab: string; prompt: string }) {
+  if (cont) {
+    const rec = data.tabs.find((t) => t.id === cont.tab);
+    if (rec) {
+      rec.pendingPrompt = cont.prompt;
+      save();
+    }
+  }
+  update.pending = true;
+  events.emit('change');
+  if (restartTimer) return;
+  const tryNow = () => {
+    if ([...tabs.values()].some((t) => t.status === 'working')) return;
+    if (restartTimer) clearInterval(restartTimer);
+    console.log('Neustart in die neue Version …');
+    respawn(() => {
+      flush();
+      killAll();
+      server.close();
+    });
+  };
+  restartTimer = setInterval(tryNow, 1000);
+  tryNow();
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

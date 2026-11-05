@@ -63,6 +63,10 @@ export interface AppState {
   projects: ProjectView[];
   tabs: TabView[];
   accounts: AccountView[];
+  /** Code version the server runs; the window reloads when it changes. */
+  version: string;
+  /** available: newer code on disk · pending: restart waits for Claude to finish */
+  update: { available: boolean; pending: boolean };
 }
 
 export interface Suggestion {

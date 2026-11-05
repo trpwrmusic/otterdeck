@@ -19,6 +19,8 @@ export interface TabRecord {
   projectId: string;
   kind: TabKind;
   claudeSessionId?: string;
+  /** Sent as soon as the conversation resumes after a restart ("carry on"). */
+  pendingPrompt?: string;
   /** Claude config dir the session belongs to. */
   account?: string;
   createdAt: number;

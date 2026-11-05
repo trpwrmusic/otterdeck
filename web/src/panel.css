@@ -507,3 +507,15 @@
   align-items: center;
   gap: 8px;
 }
+
+/* ---------- update card ---------- */
+
+.notify-card.update {
+  color: var(--accent);
+}
+.notify-card.update:disabled {
+  cursor: default;
+}
+.spinning {
+  animation: spin 1.4s linear infinite;
+}

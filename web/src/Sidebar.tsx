@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type MouseEvent } from 'react';
-import { BellRing, ChevronRight, MessagesSquare, Pin, Plus } from 'lucide-react';
+import { BellRing, ChevronRight, MessagesSquare, Pin, Plus, RefreshCw } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
 import { api, attentionOf, usePersisted } from './api';
 import { ContextMenu, ProjectAvatar, StatusMark, type MenuItem } from './bits';
@@ -209,6 +209,20 @@ export function Sidebar(props: Props) {
           </div>
         )}
       </div>
+
+      {state.update.available && (
+        <button className="notify-card update" onClick={() => !state.update.pending && api.restart()} disabled={state.update.pending}>
+          <RefreshCw size={18} className={state.update.pending ? 'spinning' : ''} />
+          <span>
+            <strong>{state.update.pending ? 'Neustart vorgemerkt' : 'Neue Version bereit'}</strong>
+            <span>
+              {state.update.pending
+                ? 'Otterdeck startet neu, sobald Claude fertig ist.'
+                : 'Neu starten. Laufende Gespräche gehen danach weiter.'}
+            </span>
+          </span>
+        </button>
+      )}
 
       {notifyPermission === 'default' && state.projects.length > 0 && (
         <button className="notify-card" onClick={onEnableNotifications}>

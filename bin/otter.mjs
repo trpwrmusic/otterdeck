@@ -4,6 +4,7 @@
 //   otter            open Otterdeck
 //   otter stop       stop the server (ends all sessions)
 //   otter status     is it running?
+//   otter restart    restart into the current code once no Claude is working
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -57,6 +58,12 @@ const cmd = process.argv[2];
 
 if (cmd === 'status') {
   console.log((await running()) ? `Otterdeck läuft auf ${URL}` : 'Otterdeck läuft nicht.');
+} else if (cmd === 'restart') {
+  if (!(await running())) console.log('Otterdeck läuft nicht.');
+  else {
+    await fetch(`${URL}/api/restart`, { method: 'POST', headers: { origin: URL } });
+    console.log('Neustart vorgemerkt: Otterdeck startet neu, sobald kein Claude mehr arbeitet.');
+  }
 } else if (cmd === 'stop') {
   if (!(await running())) {
     console.log('Otterdeck läuft nicht.');

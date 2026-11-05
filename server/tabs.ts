@@ -323,6 +323,17 @@ export const tabs = new Map<string, Tab>();
 // Tabs from the last run come back dormant and resume their conversation when opened.
 for (const rec of data.tabs) if (data.projects.some((p) => p.id === rec.projectId)) tabs.set(rec.id, new Tab(rec));
 
+/** A tab that was asked to carry on after a restart starts right away, without waiting to be opened. */
+export function resumePending() {
+  for (const tab of tabs.values()) {
+    const prompt = tab.rec.pendingPrompt;
+    if (!prompt) continue;
+    delete tab.rec.pendingPrompt;
+    save();
+    tab.start({ prompt });
+  }
+}
+
 export function touchProject(id: string) {
   const p = data.projects.find((x) => x.id === id);
   if (!p) return;
