@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Cpu, Orbit, Sparkles } from 'lucide-react';
 import type { ModelChoice, Provider, TabView } from '../../shared/types';
 import { api, usePersisted } from './api';
+import { ModeList, modeOf } from './chat/Composer';
 
 // ---------- the model list (loaded once) ----------
 
@@ -183,41 +184,95 @@ export function NewChatButton({
   );
 }
 
+/** The models of this tab's provider; picking one switches the running session. */
+export function ModelSwitchList({ tab, onDone }: { tab: TabView; onDone?: () => void }) {
+  const models = useModels();
+  const [error, setError] = useState<string | null>(null);
+  const provider: Provider = tab.kind === 'agy' ? 'agy' : 'claude';
+  const busy = tab.status === 'working' || tab.status === 'waiting';
+  return (
+    <>
+      {busy && <div className="model-note">Arbeitet gerade. Wechseln geht danach.</div>}
+      {provider === 'agy' && <div className="model-note">Antigravity startet dafür kurz neu, der Chat geht weiter.</div>}
+      <ModelList
+        providers={[provider]}
+        models={models}
+        current={{ provider, model: tab.modelId }}
+        onPick={(next) => {
+          if (busy || !next.model) return onDone?.();
+          setError(null);
+          api
+            .setModel(tab.id, next.model)
+            .then(() => onDone?.())
+            .catch((err) => setError(err.message));
+        }}
+      />
+      {error && <div className="mode-error">{error}</div>}
+    </>
+  );
+}
+
+export function modelLabel(tab: TabView, models: Record<Provider, ModelChoice[]> | null) {
+  const provider: Provider = tab.kind === 'agy' ? 'agy' : 'claude';
+  return (tab.model ?? (tab.modelId ? models?.[provider].find((m) => m.id === tab.modelId)?.label : null) ?? 'Standard').replace(/^Claude\s+/, '');
+}
+
 /** In the chat box next to the mode: which model this session runs with, and switching it. */
 export function ModelMenu({ tab }: { tab: TabView }) {
   const models = useModels();
   const { open, setOpen, ref } = usePopover();
-  const [error, setError] = useState<string | null>(null);
-  const provider: Provider = tab.kind === 'agy' ? 'agy' : 'claude';
   const busy = tab.status === 'working' || tab.status === 'waiting';
-  const label = (tab.model ?? (tab.modelId ? models?.[provider].find((m) => m.id === tab.modelId)?.label : null) ?? 'Modell').replace(/^Claude\s+/, '');
   return (
     <div className="model-switch" ref={ref}>
       <button className="mode-btn" onClick={() => setOpen(!open)} title={busy ? 'Modell wechseln geht, wenn die Sitzung nicht arbeitet' : 'Modell wechseln'}>
         <Cpu size={14} />
-        <span className="mode-btn-label">{label}</span>
+        <span className="mode-btn-label">{modelLabel(tab, models)}</span>
         <ChevronDown size={13} />
       </button>
       {open && (
         <div className="model-menu up" role="menu">
-          {busy && <div className="model-note">Arbeitet gerade. Wechseln geht danach.</div>}
-          {provider === 'agy' && <div className="model-note">Antigravity startet dafür kurz neu, der Chat geht weiter.</div>}
-          <ModelList
-            providers={[provider]}
-            models={models}
-            current={{ provider, model: tab.modelId }}
-            onPick={(next) => {
-              if (busy || !next.model) return setOpen(false);
-              setError(null);
-              api
-                .setModel(tab.id, next.model)
-                .then(() => setOpen(false))
-                .catch((err) => setError(err.message));
-            }}
-          />
-          {error && <div className="mode-error">{error}</div>}
+          <ModelSwitchList tab={tab} onDone={() => setOpen(false)} />
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Phone: one small round button (the current mode's icon) instead of two chips. It opens a sheet
+ * as wide as the chat box with both: model and mode.
+ */
+export function ComposerSheet({ tab }: { tab: TabView }) {
+  const models = useModels();
+  const [open, setOpen] = useState(false);
+  const Icon = modeOf(tab)?.icon ?? Cpu;
+  return (
+    <>
+      <button
+        className={`round-btn plain sheet-btn${tab.mode && tab.mode !== 'default' ? ' on' : ''}`}
+        onClick={() => setOpen(!open)}
+        aria-label="Modell und Modus"
+        title={`${modelLabel(tab, models)} · ${modeOf(tab)?.label ?? 'Modus'}`}
+      >
+        <Icon size={18} />
+      </button>
+      {open && (
+        <>
+          <div className="sheet-scrim" onClick={() => setOpen(false)} />
+          <div className="composer-sheet" role="dialog" aria-label="Modell und Modus">
+            <div className="sheet-head">
+              <span>Modell</span>
+              <span className="sheet-now">{modelLabel(tab, models)}</span>
+            </div>
+            <ModelSwitchList tab={tab} onDone={() => setOpen(false)} />
+            <div className="sheet-head">
+              <span>Modus</span>
+              <span className="sheet-now">{modeOf(tab)?.label ?? ''}</span>
+            </div>
+            <ModeList tab={tab} onDone={() => setOpen(false)} />
+          </div>
+        </>
+      )}
+    </>
   );
 }

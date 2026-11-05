@@ -1470,3 +1470,67 @@ button.model-row:hover,
 .model-switch {
   position: relative;
 }
+
+/* ---------- phone: one button, one sheet for model + mode ---------- */
+
+.composer-wrap {
+  position: relative;
+}
+.sheet-btn {
+  flex: none;
+}
+.sheet-btn.on {
+  color: var(--text);
+  background: var(--active);
+}
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.45);
+  animation: fade-in 0.15s ease;
+}
+.composer-sheet {
+  position: absolute;
+  /* same width as the chat box below it */
+  left: var(--sheet-gutter, 0);
+  right: var(--sheet-gutter, 0);
+  bottom: calc(100% + 8px);
+  z-index: 56;
+  max-height: min(64vh, 560px);
+  overflow-y: auto;
+  padding: 6px 6px 8px;
+  border-radius: 16px;
+  background: #18181b;
+  box-shadow: var(--shadow-float);
+  animation: sheet-up 0.2s var(--spring, ease-out);
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+.sheet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--faint);
+}
+.sheet-now {
+  font-weight: 500;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-sheet .mode-item {
+  width: 100%;
+}
+.composer-wrap {
+  --sheet-gutter: 20px;
+}

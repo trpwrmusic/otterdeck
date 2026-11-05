@@ -28,13 +28,48 @@ const MODES: { id: PermissionMode; label: string; hint: string; icon: typeof Han
   { id: 'auto', label: 'Auto', hint: 'Claude entscheidet selbst, wann es fragt', icon: Sparkles },
 ];
 
-/** The permission mode of this Claude tab, switchable like Shift+Tab in the terminal. */
-export function ModeMenu({ tab }: { tab: TabView }) {
-  const [open, setOpen] = useState(false);
+export function modeOf(tab: TabView) {
+  return MODES.find((m) => m.id === tab.mode) ?? (tab.mode === 'bypass' ? { id: 'bypass' as const, label: 'Ohne Rückfragen', hint: '', icon: Sparkles } : null);
+}
+
+/** The modes as a list (used in the menu and in the phone sheet). */
+export function ModeList({ tab, onDone }: { tab: TabView; onDone?: () => void }) {
   const [busy, setBusy] = useState<PermissionMode | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const choose = async (id: PermissionMode) => {
+    setBusy(id);
+    setError(null);
+    try {
+      await api.setMode(tab.id, id);
+      onDone?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      {MODES.filter((m) => tab.kind !== 'agy' || m.id !== 'bypass').map((m) => (
+        <button key={m.id} className={`mode-item${m.id === tab.mode ? ' sel' : ''}`} onClick={() => choose(m.id)} disabled={busy !== null}>
+          <m.icon size={15} />
+          <span className="mode-text">
+            <span className="mode-label">{m.label}</span>
+            <span className="mode-hint">{m.hint}</span>
+          </span>
+          {busy === m.id ? <span className="mark working" style={{ width: 12, height: 12 }} /> : m.id === tab.mode ? <Check size={14} /> : null}
+        </button>
+      ))}
+      {error && <div className="mode-error">{error}</div>}
+    </>
+  );
+}
+
+/** The permission mode of this tab, switchable like Shift+Tab in the terminal. */
+export function ModeMenu({ tab }: { tab: TabView }) {
+  const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  const current = MODES.find((m) => m.id === tab.mode) ?? (tab.mode === 'bypass' ? { id: 'bypass' as const, label: 'Ohne Rückfragen', hint: '', icon: Sparkles } : null);
+  const current = modeOf(tab);
 
   useEffect(() => {
     if (!open) return;
@@ -42,19 +77,6 @@ export function ModeMenu({ tab }: { tab: TabView }) {
     window.addEventListener('mousedown', close);
     return () => window.removeEventListener('mousedown', close);
   }, [open]);
-
-  const choose = async (id: PermissionMode) => {
-    setBusy(id);
-    setError(null);
-    try {
-      await api.setMode(tab.id, id);
-      setOpen(false);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  };
 
   const Icon = current?.icon ?? Hand;
   return (
@@ -66,17 +88,7 @@ export function ModeMenu({ tab }: { tab: TabView }) {
       </button>
       {open && (
         <div className="mode-menu" role="menu">
-          {MODES.filter((m) => tab.kind !== 'agy' || m.id !== 'bypass').map((m) => (
-            <button key={m.id} className={`mode-item${m.id === tab.mode ? ' sel' : ''}`} onClick={() => choose(m.id)} disabled={busy !== null}>
-              <m.icon size={15} />
-              <span className="mode-text">
-                <span className="mode-label">{m.label}</span>
-                <span className="mode-hint">{m.hint}</span>
-              </span>
-              {busy === m.id ? <span className="mark working" style={{ width: 12, height: 12 }} /> : m.id === tab.mode ? <Check size={14} /> : null}
-            </button>
-          ))}
-          {error && <div className="mode-error">{error}</div>}
+          <ModeList tab={tab} onDone={() => setOpen(false)} />
         </div>
       )}
     </div>
