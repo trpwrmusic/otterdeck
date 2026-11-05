@@ -47,6 +47,13 @@ export function App() {
     [setSelected],
   );
 
+  // Short messages from anywhere in the app (e.g. an icon that could not be stored).
+  useEffect(() => {
+    const on = (e: Event) => setToast({ text: String((e as CustomEvent).detail) });
+    window.addEventListener('otter:toast', on);
+    return () => window.removeEventListener('otter:toast', on);
+  }, []);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 7000);

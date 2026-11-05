@@ -25,6 +25,9 @@ export const HOOK_TOKEN = crypto.randomBytes(24).toString('hex');
 /** Files and pictures you add in the chat; every Claude tab may read this folder (--add-dir). */
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+/** Icons picked for projects and groups (file name stored in state.json). */
+export const ICON_DIR = path.join(DATA_DIR, 'icons');
+fs.mkdirSync(ICON_DIR, { recursive: true });
 
 export const HOME = os.homedir();
 /** The Claude account used when a project has none of its own. */

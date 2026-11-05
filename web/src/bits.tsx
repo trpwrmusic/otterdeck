@@ -17,12 +17,17 @@ export function StatusMark({ attention, size = 14 }: { attention: Attention; siz
 }
 
 export function ProjectAvatar({ project, size = 30 }: { project: ProjectView; size?: number }) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const letter = project.displayName.replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase() || '·';
   return (
     <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.46, borderRadius: size * 0.28 }}>
-      {!failed ? (
-        <img src={`/api/projects/${project.id}/icon`} alt="" onError={() => setFailed(true)} draggable={false} />
+      {project.icon && failed !== project.icon ? (
+        <img
+          src={`/api/projects/${project.id}/icon?v=${encodeURIComponent(project.icon)}`}
+          alt=""
+          onError={() => setFailed(project.icon)}
+          draggable={false}
+        />
       ) : (
         letter
       )}

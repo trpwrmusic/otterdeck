@@ -37,7 +37,29 @@ async function call<T = any>(method: string, url: string, body?: unknown): Promi
   return json as T;
 }
 
+async function putImage(url: string, file: File) {
+  const res = await fetch(url, { method: 'PUT', headers: { 'content-type': file.type || 'application/octet-stream' }, body: file });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || res.statusText);
+}
+
+/** Opens the file picker for one picture. */
+export function pickImage(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/svg+xml,image/png,image/jpeg,image/webp,image/gif,image/x-icon,.ico';
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
+
 export const api = {
+  setProjectIcon: (id: string, file: File) => putImage(`/api/projects/${id}/icon`, file),
+  clearProjectIcon: (id: string) => call('DELETE', `/api/projects/${id}/icon`),
+  setGroupIcon: (name: string, file: File) => putImage(`/api/groups/icon?name=${encodeURIComponent(name)}`, file),
+  clearGroupIcon: (name: string) => call('DELETE', `/api/groups/icon?name=${encodeURIComponent(name)}`),
   addProject: (path: string) => call<{ id: string }>('POST', '/api/projects', { path }),
   renameGroup: (from: string, to: string) => call('POST', '/api/groups', { from, to }),
   updateProject: (id: string, patch: { name?: string | null; pinned?: boolean; account?: string | null; group?: string | null }) =>

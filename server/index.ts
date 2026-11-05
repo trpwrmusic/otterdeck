@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
-import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, PORT, UPLOAD_DIR, WEB_DIST } from './config.ts';
+import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, UPLOAD_DIR, WEB_DIST } from './config.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
@@ -105,6 +105,7 @@ function projectView(p: (typeof data.projects)[number]): ProjectView {
     exists: fs.existsSync(p.path),
     account: p.account ?? null,
     group: p.group ?? null,
+    icon: p.icon ?? (projectIcon(p.path) ? 'auto' : null),
   };
 }
 
@@ -113,6 +114,7 @@ function state(): AppState {
     projects: data.projects.map(projectView),
     tabs: data.tabs.map((r) => tabs.get(r.id)?.view()).filter((t) => !!t),
     accounts,
+    groupIcons: { ...(data.groupIcons ?? {}) },
     version: VERSION,
     update: { ...update },
   };
@@ -162,6 +164,9 @@ const TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
   '.webmanifest': 'application/manifest+json',
   '.json': 'application/json',
   '.woff2': 'font/woff2',
@@ -194,6 +199,35 @@ const ICON_CANDIDATES = [
   'assets/icon.png', 'assets/logo.png', 'build/icon.png',
 ];
 const iconCache = new Map<string, { at: number; file: string | null }>();
+const ICON_TYPES: Record<string, string> = {
+  'image/svg+xml': '.svg', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'image/x-icon': '.ico', 'image/vnd.microsoft.icon': '.ico',
+};
+
+/** Stores an uploaded icon under a fresh name (the name doubles as version) and removes the old one. */
+async function storeIcon(req: http.IncomingMessage, old: string | undefined): Promise<string> {
+  const ext = ICON_TYPES[String(req.headers['content-type'] ?? '').split(';')[0].trim()];
+  if (!ext) throw new Error('Bitte ein Bild wählen (SVG, PNG, JPG, WebP, ICO).');
+  let size = 0;
+  const chunks: Buffer[] = [];
+  for await (const c of req) {
+    size += c.length;
+    if (size > 3_000_000) throw new Error('Das Bild ist größer als 3 MB.');
+    chunks.push(c);
+  }
+  const name = newId() + ext;
+  fs.writeFileSync(path.join(ICON_DIR, name), Buffer.concat(chunks));
+  dropIcon(old);
+  return name;
+}
+function dropIcon(name: string | undefined) {
+  if (name) fs.rmSync(path.join(ICON_DIR, path.basename(name)), { force: true });
+}
+function sendIcon(res: http.ServerResponse, file: string | null) {
+  if (!file || !fs.existsSync(file)) return json(res, 404, { error: 'no icon' });
+  res.writeHead(200, { 'content-type': TYPES[path.extname(file).toLowerCase()] ?? 'image/png', 'cache-control': 'max-age=86400' });
+  fs.createReadStream(file).pipe(res);
+}
+
 function projectIcon(dir: string): string | null {
   const hit = iconCache.get(dir);
   if (hit && Date.now() - hit.at < 60_000) return hit.file;
@@ -326,12 +360,39 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ...result, tabId });
     }
 
+    // /api/groups/icon?name=… – a group's own icon (GET, PUT with the picture as body, DELETE)
+    if (url.pathname === '/api/groups/icon') {
+      const name = String(url.searchParams.get('name') ?? '').trim();
+      const gi = (data.groupIcons ??= {});
+      if (method === 'GET') return sendIcon(res, gi[name] ? path.join(ICON_DIR, path.basename(gi[name])) : null);
+      if (!name) return json(res, 400, { error: 'name fehlt' });
+      if (method === 'PUT') {
+        try {
+          gi[name] = await storeIcon(req, gi[name]);
+        } catch (err) {
+          return json(res, 400, { error: (err as Error).message });
+        }
+      } else if (method === 'DELETE') {
+        dropIcon(gi[name]);
+        delete gi[name];
+      }
+      save();
+      events.emit('change');
+      return json(res, 200, { ok: true });
+    }
+
     // /api/groups – rename a group (to = name) or dissolve it (to = empty): applies to all its projects
     if (url.pathname === '/api/groups' && method === 'POST') {
       const body = await readBody(req);
       const from = String(body.from ?? '').trim();
       const to = String(body.to ?? '').trim();
       for (const p of data.projects) if (p.group === from) p.group = to || undefined;
+      const gi = (data.groupIcons ??= {});
+      if (gi[from]) {
+        if (to && !gi[to]) gi[to] = gi[from];
+        else dropIcon(gi[from]);
+        delete gi[from];
+      }
       save();
       events.emit('change');
       return json(res, 200, { ok: true });
@@ -376,10 +437,24 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
       if (parts[3] === 'icon') {
-        const icon = projectIcon(p.path);
-        if (!icon) return json(res, 404, { error: 'no icon' });
-        res.writeHead(200, { 'content-type': TYPES[path.extname(icon)] ?? 'image/png', 'cache-control': 'max-age=300' });
-        return fs.createReadStream(icon).pipe(res);
+        if (method === 'PUT') {
+          try {
+            p.icon = await storeIcon(req, p.icon);
+          } catch (err) {
+            return json(res, 400, { error: (err as Error).message });
+          }
+          save();
+          events.emit('change');
+          return json(res, 200, { ok: true });
+        }
+        if (method === 'DELETE') {
+          dropIcon(p.icon);
+          delete p.icon;
+          save();
+          events.emit('change');
+          return json(res, 200, { ok: true });
+        }
+        return sendIcon(res, p.icon ? path.join(ICON_DIR, path.basename(p.icon)) : projectIcon(p.path));
       }
       if (parts[3] === 'changes') {
         keepWatching(p.id, p.path);

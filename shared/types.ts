@@ -75,6 +75,8 @@ export interface ProjectView {
   group: string | null;
   /** Account new Claude chats in this project start with (null = default account). Existing chats keep their own. */
   account: string | null;
+  /** Changes whenever the icon changes (part of the icon URL, so the picture refreshes); null = none. */
+  icon: string | null;
 }
 
 export interface AccountView {
@@ -89,6 +91,8 @@ export interface AppState {
   projects: ProjectView[];
   tabs: TabView[];
   accounts: AccountView[];
+  /** Group name → icon version for groups that have an own icon. */
+  groupIcons: Record<string, string>;
   /** Code version the server runs; the window reloads when it changes. */
   version: string;
   /** available: newer code on disk · pending: restart waits for Claude to finish */

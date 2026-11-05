@@ -12,6 +12,8 @@ export interface ProjectRecord {
   /** Name of the group this project belongs to (Heidehof → App, Website). */
   group?: string;
   account?: string;
+  /** Own icon file in ICON_DIR (otherwise one found in the folder). */
+  icon?: string;
   addedAt: number;
   lastUsed: number;
 }
@@ -34,6 +36,8 @@ interface Data {
   tabs: TabRecord[];
   /** Set once the old "last used" stamps were reset (see index.ts). */
   activityV2?: boolean;
+  /** Icon file (in ICON_DIR) per group name. */
+  groupIcons?: Record<string, string>;
 }
 
 const FILE = path.join(DATA_DIR, 'state.json');
@@ -41,7 +45,7 @@ const FILE = path.join(DATA_DIR, 'state.json');
 function load(): Data {
   try {
     const d = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [], activityV2: d.activityV2 };
+    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [], activityV2: d.activityV2, groupIcons: d.groupIcons ?? {} };
   } catch {
     return { version: 1, projects: [], tabs: [] };
   }

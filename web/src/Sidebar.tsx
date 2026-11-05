@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { BellRing, ChevronRight, MessagesSquare, Pin, Plus, RefreshCw, Search } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
-import { api, attentionOf, usePersisted } from './api';
+import { api, attentionOf, pickImage, usePersisted } from './api';
 import { ContextMenu, ProjectAvatar, StatusMark, type MenuItem } from './bits';
 import { CHAT_MIME } from './ChatsPage';
 import { Glide } from './Glide';
@@ -191,6 +191,8 @@ export function Sidebar(props: Props) {
       { label: 'Umbenennen …', onClick: () => setRenaming(p.id) },
     ];
     if (p.name) items.push({ label: 'Ordnernamen verwenden', onClick: () => api.updateProject(p.id, { name: null }) });
+    items.push({ label: 'Icon wählen …', onClick: () => chooseIcon((f) => api.setProjectIcon(p.id, f)) });
+    if (p.icon && p.icon !== 'auto') items.push({ label: 'Eigenes Icon entfernen', onClick: () => api.clearProjectIcon(p.id) });
     // Groups
     const others = groupNames.filter((g) => g !== p.group);
     others.forEach((g, i) => items.push({ label: `In Gruppe „${g}“`, separatorBefore: i === 0, onClick: () => api.updateProject(p.id, { group: g }) }));
@@ -214,8 +216,15 @@ export function Sidebar(props: Props) {
     return items;
   };
 
+  const chooseIcon = async (put: (f: File) => Promise<unknown>) => {
+    const file = await pickImage();
+    if (file) put(file).catch((err) => window.dispatchEvent(new CustomEvent('otter:toast', { detail: String(err.message ?? err) })));
+  };
+
   const groupMenu = (name: string): MenuItem[] => [
     { label: 'Gruppe umbenennen …', onClick: () => setRenaming(`group:${name}`) },
+    { label: 'Icon wählen …', onClick: () => chooseIcon((f) => api.setGroupIcon(name, f)) },
+    ...(state.groupIcons?.[name] ? [{ label: 'Icon entfernen', onClick: () => api.clearGroupIcon(name) }] : []),
     { label: 'Gruppe auflösen', hint: 'Projekte bleiben', onClick: () => api.renameGroup(name, '') },
   ];
 
@@ -311,8 +320,12 @@ export function Sidebar(props: Props) {
           onContextMenu={(e) => openMenu(e, groupMenu(g.name))}
           {...dropProps(key, null, (pid) => joinGroup(pid, { group: g.name }))}
         >
-          <span className="group-tile" style={{ width: compact ? 24 : 30, height: compact ? 24 : 30 }}>
-            {g.name.replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase()}
+          <span className={`group-tile${state.groupIcons?.[g.name] ? ' has-icon' : ''}`} style={{ width: compact ? 24 : 30, height: compact ? 24 : 30 }}>
+            {state.groupIcons?.[g.name] ? (
+              <img src={`/api/groups/icon?name=${encodeURIComponent(g.name)}&v=${state.groupIcons[g.name]}`} alt="" draggable={false} />
+            ) : (
+              g.name.replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase()
+            )}
           </span>
           <div className="row-text">
             {renaming === key ? (
