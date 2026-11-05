@@ -1,5 +1,17 @@
 // Types shared between the Otterdeck server and the web UI.
 
+/** An AI provider Otterdeck can run: Claude Code or the Antigravity CLI. */
+export type Provider = 'claude' | 'agy';
+
+/** A model to pick for a new chat or to switch to in a running one. */
+export interface ModelChoice {
+  provider: Provider;
+  /** What goes to --model / /model. */
+  id: string;
+  label: string;
+  hint?: string;
+}
+
 /** claude = Claude Code, agy = Antigravity CLI (Google), shell = PowerShell/bash. */
 export type TabKind = 'claude' | 'agy' | 'shell';
 
@@ -46,6 +58,10 @@ export interface TabView {
   prompt: PromptView | null;
   /** Claude Code's permission mode as its footer shows it (null = not seen yet). */
   mode: PermissionMode | null;
+  /** Model the session runs with, as the CLI shows it (e.g. "Opus 5.5", "Gemini 4 Argon (Medium)"). */
+  model: string | null;
+  /** Model id it was started with or switched to (null = the CLI's default). */
+  modelId: string | null;
   /** The prompt that started the current or last turn. */
   lastPrompt: string | null;
   /** Claude's last reply, shortened. */

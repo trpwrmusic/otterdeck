@@ -47,6 +47,8 @@ export interface TabRecord {
   account?: string;
   /** Permission mode Claude starts in (server tasks take over the laptop's mode). */
   mode?: string;
+  /** Model id (--model) the session runs with. */
+  model?: string;
   /** This tab runs `claude setup-token` (connecting a server), not a shell. */
   setupToken?: boolean;
   createdAt: number;

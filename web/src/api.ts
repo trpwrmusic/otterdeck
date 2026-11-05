@@ -14,6 +14,8 @@ import type {
   TabView,
   NolaTask,
   NolaTaskDetail,
+  ModelChoice,
+  Provider,
 } from '../../shared/types';
 
 /** Fires "changes" (detail = projectId) when files in a watched project changed. */
@@ -92,8 +94,10 @@ export const api = {
       open,
     }),
   dirs: (path: string) => call<string[]>('GET', `/api/fs/dirs?path=${encodeURIComponent(path)}`),
-  newTab: (projectId: string, kind: 'claude' | 'agy' | 'shell', resume?: string, prompt?: string, account?: string) =>
-    call<{ id: string }>('POST', '/api/tabs', { projectId, kind, resume, prompt, account }),
+  newTab: (projectId: string, kind: 'claude' | 'agy' | 'shell', resume?: string, prompt?: string, account?: string, model?: string | null) =>
+    call<{ id: string }>('POST', '/api/tabs', { projectId, kind, resume, prompt, account, model: model ?? undefined }),
+  models: () => call<Record<Provider, ModelChoice[]>>('GET', '/api/models'),
+  setModel: (id: string, model: string) => call('POST', `/api/tabs/${id}/model`, { model }),
   sendToTab: (id: string, text: string, lead?: string) => call('POST', `/api/tabs/${id}/send`, { text, lead }),
   commands: (projectId: string, tabId: string) =>
     call<{ name: string; description: string; source: string }[]>('GET', `/api/projects/${projectId}/commands?tab=${tabId}`),

@@ -17,7 +17,7 @@ const pty: typeof Pty = await import('node-pty')
     return m.default ?? m;
   });
 import { HOOK_SETTINGS, describePermission, describeTool, shorten } from './hooks.ts';
-import { AGY_BIN, AgyTranscriptTail, agyBusy, agyModeFlag, agyTranscript, agyTitle, describeAgyTool, lastConversationFor, parseAgyMode } from './agy.ts';
+import { AGY_BIN, AgyTranscriptTail, agyBusy, agyModeFlag, agyTranscript, agyModelLabel, agyTitle, describeAgyTool, lastConversationFor, parseAgyMode } from './agy.ts';
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
 import { TranscriptTail } from './transcript.ts';
@@ -91,6 +91,27 @@ class Tab {
     return this.rec.kind === 'claude' || this.rec.kind === 'agy';
   }
   startedAt = 0;
+  /** Model as the CLI shows it (Claude: status line, agy: footer). */
+  modelLabel: string | null = null;
+
+  /**
+   * Switches the model. Claude takes /model in the running session; agy gets restarted on the same
+   * conversation with --model (nothing is lost, the chat continues).
+   */
+  async setModel(id: string) {
+    if (!this.agent) return false;
+    if (this.status === 'working' || this.status === 'waiting') throw new Error('Erst wenn die Sitzung nicht arbeitet.');
+    this.rec.model = id;
+    save();
+    if (this.rec.kind === 'claude' && this.proc) {
+      await this.type('/model ' + id);
+    } else {
+      this.kill();
+      this.start();
+    }
+    changed();
+    return true;
+  }
   /** agy reported through its hooks; until then the screen tells the status. */
   private agyHooks = false;
 
@@ -204,6 +225,8 @@ class Tab {
       question: this.question,
       prompt: this.prompt,
       mode: this.agent ? this.mode : null,
+      model: this.agent ? this.modelLabel : null,
+      modelId: this.rec.model ?? null,
       lastPrompt: this.lastPrompt,
       lastMessage: this.lastMessage,
       unseen: this.unseen,
@@ -251,6 +274,7 @@ class Tab {
       // Our names for the modes (as the footer shows them) → Claude's --permission-mode values.
       const mode = this.rec.mode === 'bypass' ? 'bypassPermissions' : this.rec.mode;
       if (mode && /^(default|acceptEdits|plan|auto|bypassPermissions)$/.test(mode)) args.push('--permission-mode', mode);
+      if (this.rec.model) args.push('--model', this.rec.model);
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
       if (resume) args.push('--resume', resume);
       // A first message (e.g. review comments) starts the conversation right away.
@@ -262,6 +286,7 @@ class Tab {
       args = ['--add-dir', UPLOAD_DIR];
       const mode = agyModeFlag(this.rec.mode);
       if (mode) args.push('--mode', mode);
+      if (this.rec.model) args.push('--model', this.rec.model);
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
       if (resume) args.push('--conversation', resume);
       if (opts.prompt) args.push('-i', opts.prompt);
@@ -518,7 +543,14 @@ class Tab {
     this.detectTimer = setTimeout(() => {
       this.detectTimer = null;
       const screen = this.screen();
-      if (this.rec.kind === 'agy') this.detectAgy(screen);
+      if (this.rec.kind === 'agy') {
+        this.detectAgy(screen);
+        const label = agyModelLabel(screen);
+        if (label && label !== this.modelLabel) {
+          this.modelLabel = label;
+          changed();
+        }
+      }
       const mode = this.rec.kind === 'agy' ? parseAgyMode(screen) : parseMode(screen);
       if (mode && mode !== this.mode) {
         this.mode = mode;
@@ -723,7 +755,7 @@ export function createTab(
   resume?: string,
   prompt?: string,
   account?: string,
-  extra: Pick<TabRecord, 'mode' | 'setupToken'> = {},
+  extra: Pick<TabRecord, 'mode' | 'setupToken' | 'model'> = {},
 ) {
   const rec: TabRecord = { id: newId(), projectId, kind, createdAt: Date.now(), ...extra };
   if (kind === 'claude' && account) rec.account = account;

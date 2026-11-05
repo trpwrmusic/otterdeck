@@ -109,3 +109,17 @@
     padding: 0 6px;
   }
 }
+
+/* Phone: the new-chat button shows only icon + provider, the model sits in the menu. */
+@media (max-width: 760px) {
+  .pane-actions .newchat-model {
+    display: none;
+  }
+  .model-row {
+    min-height: 40px;
+  }
+  .effort {
+    height: 30px;
+    padding: 0 10px;
+  }
+}

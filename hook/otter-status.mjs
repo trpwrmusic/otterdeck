@@ -23,12 +23,12 @@ async function run() {
   const pct = (w) => (w && typeof w.used_percentage === 'number' ? `${Math.round(w.used_percentage)} %` : null);
   const parts = [s.model?.display_name, pct(rl?.five_hour) && `5 Std. ${pct(rl.five_hour)}`, pct(rl?.seven_day) && `Woche ${pct(rl.seven_day)}`];
   process.stdout.write(parts.filter(Boolean).join(' · '));
-  if (url && tab && rl) {
+  if (url && tab && (rl || s.model?.display_name)) {
     try {
       await fetch(`${url}/api/usage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-otter-token': token ?? '' },
-        body: JSON.stringify({ tab, rate_limits: rl }),
+        body: JSON.stringify({ tab, rate_limits: rl, model: s.model?.display_name ?? null }),
         signal: AbortSignal.timeout(1000),
       });
     } catch {}

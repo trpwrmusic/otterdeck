@@ -7,6 +7,7 @@ import { ChangesPanel } from './ChangesPanel';
 import { UsageCard } from './UsageCard';
 import { RemoteCard } from './RemoteCard';
 import { HandoffDialog, ServerCard } from './ServerParts';
+import { NewChatButton } from './ModelPicker';
 import { COMMENTS_LEAD, DiffView, FileView, formatComments, type ReviewComment } from './DiffView';
 import { TerminalView } from './TerminalView';
 import { ChatView } from './chat/ChatView';
@@ -91,8 +92,8 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
   // The header shows the account of the chat you're looking at, else the one new chats get.
   const shownAccount = multi ? (current?.kind === 'claude' ? accountOf(current.account) : null) ?? projectDefault : null;
 
-  const open = async (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string) => {
-    const { id } = await api.newTab(project.id, kind, resume, undefined, account);
+  const open = async (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string, model?: string | null) => {
+    const { id } = await api.newTab(project.id, kind, resume, undefined, account, model);
     onActivate(id);
   };
 
@@ -179,26 +180,18 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
               <CloudUpload size={15} /> Auf Server
             </button>
           )}
-          {agy && (
-            <button className="btn small" onClick={() => open('agy')} title="Antigravity starten (Google, agy)">
-              <Orbit size={15} /> Antigravity
-            </button>
-          )}
           <button className="btn small" onClick={() => open('shell')} title="Shell öffnen (Strg+Umschalt+^)">
             <SquareTerminal size={15} /> Shell
           </button>
-          <button
-            className="btn small primary"
-            onClick={() => open('claude')}
+          <NewChatButton
+            agy={!!agy}
+            onStart={(c) => open(c.provider, undefined, undefined, c.model)}
             onContextMenu={(e) => {
               if (!multi) return;
               e.preventDefault();
               setAccountMenu({ x: e.clientX, y: e.clientY });
             }}
-            title={multi ? `Neuer Chat mit ${projectDefault?.label} · Rechtsklick: anderes Konto` : 'Neuer Claude-Tab (Strg+Umschalt+Enter)'}
-          >
-            <Sparkles size={15} /> Claude
-          </button>
+          />
           {accountMenu && (
             <ContextMenu
               x={accountMenu.x}
@@ -358,7 +351,7 @@ function StartPage({
 }: {
   project: ProjectView;
   accounts: AccountView[];
-  onOpen: (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string) => void;
+  onOpen: (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string, model?: string | null) => void;
   agy?: boolean;
 }) {
   const label = (dir: string) => (accounts.length > 1 ? accounts.find((a) => a.dir.toLowerCase() === dir.toLowerCase())?.label : null);
@@ -379,14 +372,7 @@ function StartPage({
         <h2>{project.displayName}</h2>
         <div className="start-path">{project.path}</div>
         <div className="start-actions">
-          <button className="btn big primary" onClick={() => onOpen('claude')} disabled={!project.exists}>
-            <Sparkles size={18} /> Claude starten
-          </button>
-          {agy && (
-            <button className="btn big" onClick={() => onOpen('agy')} disabled={!project.exists}>
-              <Orbit size={18} /> Antigravity
-            </button>
-          )}
+          <NewChatButton big agy={!!agy} disabled={!project.exists} onStart={(c) => onOpen(c.provider, undefined, undefined, c.model)} />
           <button className="btn big" onClick={() => onOpen('shell')} disabled={!project.exists}>
             <SquareTerminal size={18} /> Shell
           </button>

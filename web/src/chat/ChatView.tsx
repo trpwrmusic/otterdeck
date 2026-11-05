@@ -7,6 +7,7 @@ import { ShellCard } from './ShellCard';
 import { EditCard, isEdit, StepRow, TodoCard } from './ToolCard';
 import { PromptCard } from './PromptCard';
 import { formatSize, ModeMenu, type Attachment } from './Composer';
+import { ModelMenu } from '../ModelPicker';
 
 type Tool = Extract<ChatItem, { k: 'tool' }>;
 /** Phone-sized window (same breakpoint as responsive.css). */
@@ -206,6 +207,12 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   useLayoutEffect(() => {
     const el = input.current;
     if (!el) return;
+    // Empty: one line. (Measuring then would count a wrapped placeholder as content.)
+    if (!draft) {
+      el.style.height = '';
+      el.classList.remove('scroll');
+      return;
+    }
     el.style.height = 'auto';
     const h = Math.min(el.scrollHeight, 240);
     el.style.height = `${h}px`;
@@ -446,7 +453,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
                 ? 'Claude läuft gerade nicht'
                 : shellMode
                   ? narrow ? 'Shell-Befehl' : 'Shell-Befehl · Claude liest die Ausgabe mit'
-                  : narrow ? (tab.kind === 'agy' ? 'Nachricht an Antigravity' : 'Nachricht an Claude') : tab.kind === 'agy' ? 'Nachricht an Antigravity' : 'Nachricht an Claude · ! für einen Shell-Befehl'
+                  : narrow ? 'Nachricht' : tab.kind === 'agy' ? 'Nachricht an Antigravity' : 'Nachricht an Claude · ! für einen Shell-Befehl'
             }
             disabled={!alive}
             onChange={(e) => {
@@ -494,6 +501,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               }
             }}
           />
+          <ModelMenu tab={tab} />
           <ModeMenu tab={tab} />
           {running ? (
             <button className="round-btn" onClick={() => api.keyToTab(tab.id, 'stop')} title="Anhalten (Esc)">

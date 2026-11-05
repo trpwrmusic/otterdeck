@@ -58,6 +58,16 @@ export function parseAgyMode(screen: string[]): PermissionMode | null {
   return null;
 }
 
+/** The model from agy's footer: "… accept-edits · Claude Opus 5.5 · medium" → "Claude Opus 5.5 (Medium)". */
+export function agyModelLabel(screen: string[]): string | null {
+  const lines = screen.filter((l) => l.trim());
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 4); i--) {
+    const m = lines[i].match(/(?:^|\s{2,})(?:(?:accept-edits|auto|plan)\s+·\s+)?([A-Z][\w .-]+?)\s+·\s+(low|medium|high|max)\s*$/i);
+    if (m) return `${m[1].trim()} (${m[2][0].toUpperCase()}${m[2].slice(1).toLowerCase()})`;
+  }
+  return null;
+}
+
 /** Footer says agy is busy ("esc to cancel") or idle ("? for shortcuts"). */
 export function agyBusy(screen: string[]): boolean | null {
   const tail = screen.filter((l) => l.trim()).slice(-3).join('\n');

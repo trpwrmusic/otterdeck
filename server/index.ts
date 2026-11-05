@@ -8,6 +8,7 @@ import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT
 import { recordUsage, usageViews } from './usage.ts';
 import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
 import { AGY_AVAILABLE, agyConversations } from './agy.ts';
+import { models, validModel } from './models.ts';
 import { NOLA_AVAILABLE, projectFor, claudePrompt, moveTask, projectTasks, searchTasks, setSubtask, taskDetail } from './nola.ts';
 import { isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
@@ -285,9 +286,14 @@ const server = http.createServer(async (req, res) => {
     // Usage limits from a tab's status line (hook/otter-status.mjs)
     if (url.pathname === '/api/usage' && method === 'POST') {
       if (req.headers['x-otter-token'] !== HOOK_TOKEN) return json(res, 403, { error: 'token' });
-      const { tab, rate_limits } = await readBody(req);
-      const account = tabs.get(tab)?.view().account;
-      if (account && recordUsage(account, rate_limits)) events.emit('change');
+      const { tab, rate_limits, model } = await readBody(req);
+      const t = tabs.get(tab);
+      const account = t?.view().account;
+      if (account && rate_limits && recordUsage(account, rate_limits)) events.emit('change');
+      if (t && typeof model === 'string' && model && model !== t.modelLabel) {
+        t.modelLabel = model.slice(0, 60);
+        events.emit('change');
+      }
       return json(res, 200, { ok: true });
     }
 
@@ -306,6 +312,7 @@ const server = http.createServer(async (req, res) => {
     if (!trusted(req, method !== 'GET')) return json(res, 403, { error: 'origin' });
 
     if (url.pathname === '/api/ping') return json(res, 200, { app: 'otterdeck' });
+    if (url.pathname === '/api/models') return json(res, 200, await models());
     // ---------- server side of "Auf Server abgeben" (handoff.ts) ----------
     if (url.pathname === '/api/server/info') return json(res, 200, serverInfo());
     if (url.pathname === '/api/server/token' && method === 'POST') {
@@ -662,6 +669,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       if (!data.projects.some((p) => p.id === body.projectId)) return json(res, 400, { error: 'project' });
       const kind = body.kind === 'shell' ? 'shell' : body.kind === 'agy' ? 'agy' : 'claude';
+      const model = kind === 'shell' ? undefined : await validModel(kind, body.model);
       if (kind === 'agy' && !AGY_AVAILABLE) return json(res, 400, { error: 'Die Antigravity-CLI (agy) ist nicht installiert.' });
       const tab = createTab(
         body.projectId,
@@ -670,12 +678,25 @@ const server = http.createServer(async (req, res) => {
         typeof body.prompt === 'string' && body.prompt.trim() ? body.prompt : undefined,
         // Only accounts that really exist on this computer.
         accounts.find((a) => typeof body.account === 'string' && a.dir.toLowerCase() === body.account.toLowerCase())?.dir,
+        model ? { model } : {},
       );
       return json(res, 200, { id: tab.rec.id });
     }
     if (parts[1] === 'tabs' && parts[2]) {
       const id = parts[2];
       if (!tabs.has(id)) return json(res, 404, { error: 'not found' });
+      if (parts[3] === 'model' && method === 'POST') {
+        const tab = tabs.get(id)!;
+        const provider = tab.rec.kind === 'agy' ? 'agy' : 'claude';
+        const model = await validModel(provider, (await readBody(req)).model);
+        if (!model) return json(res, 400, { error: 'Dieses Modell gibt es hier nicht.' });
+        try {
+          await tab.setModel(model);
+        } catch (err) {
+          return json(res, 409, { error: (err as Error).message });
+        }
+        return json(res, 200, { ok: true });
+      }
       if (parts[3] === 'handoff' && method === 'POST') {
         const body = await readBody(req);
         try {
