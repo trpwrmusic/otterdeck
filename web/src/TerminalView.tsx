@@ -10,10 +10,10 @@ import { api, termUrl } from './api';
 import { isAppShortcut } from './shortcuts';
 
 const DARK: ITheme = {
-  background: '#0e0e0f',
+  background: '#121214',
   foreground: '#e6e6e8',
   cursor: '#ededee',
-  cursorAccent: '#0e0e0f',
+  cursorAccent: '#121214',
   selectionBackground: 'rgba(255,255,255,0.16)',
   black: '#1f1f22',
   red: '#e0786e',

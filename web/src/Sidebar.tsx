@@ -313,7 +313,7 @@ export function Sidebar(props: Props) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <img src="/icon.svg" alt="" className="brand-icon" />
+        <img src="/mark.svg" alt="" className="brand-icon" />
         <span className="brand-name">Otterdeck</span>
         <button className={`icon-btn${view === 'add' ? ' on' : ''}`} onClick={onAdd} title="Projekt hinzufügen">
           <Plus size={18} />

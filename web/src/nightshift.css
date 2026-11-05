@@ -344,7 +344,7 @@
 
 .side-panel {
   padding: 12px 12px 0;
-  box-shadow: inset 1px 0 0 var(--border);
+  background: #0f0f11;
 }
 .branch-card {
   background: transparent;
@@ -759,14 +759,9 @@
 .group-chev.rot {
   transform: rotate(90deg);
 }
-.group-head.holds {
-  box-shadow: inset 2px 0 0 var(--muted);
-}
 .group-children {
   /* not positioned: the glide measures rows against the sidebar list */
   margin-left: 22px;
-  padding-left: 6px;
-  box-shadow: inset 1px 0 0 var(--border);
   animation: rise 0.2s var(--ease);
 }
 .row.child {
