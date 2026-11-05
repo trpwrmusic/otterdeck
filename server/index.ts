@@ -5,6 +5,7 @@ import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
 import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, UPLOAD_DIR, WEB_DIST } from './config.ts';
+import { recordUsage, usageViews } from './usage.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
@@ -115,6 +116,7 @@ function state(): AppState {
     tabs: data.tabs.map((r) => tabs.get(r.id)?.view()).filter((t) => !!t),
     accounts,
     groupIcons: { ...(data.groupIcons ?? {}) },
+    usage: usageViews(),
     version: VERSION,
     update: { ...update },
   };
@@ -270,6 +272,15 @@ const server = http.createServer(async (req, res) => {
 
   try {
     // Hook events come from our own child processes and carry the token instead of an origin.
+    // Usage limits from a tab's status line (hook/otter-status.mjs)
+    if (url.pathname === '/api/usage' && method === 'POST') {
+      if (req.headers['x-otter-token'] !== HOOK_TOKEN) return json(res, 403, { error: 'token' });
+      const { tab, rate_limits } = await readBody(req);
+      const account = tabs.get(tab)?.view().account;
+      if (account && recordUsage(account, rate_limits)) events.emit('change');
+      return json(res, 200, { ok: true });
+    }
+
     if (url.pathname === '/api/hook' && method === 'POST') {
       if (req.headers['x-otter-token'] !== HOOK_TOKEN) return json(res, 403, { error: 'token' });
       const { tab, event, payload } = await readBody(req);

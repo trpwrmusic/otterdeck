@@ -317,6 +317,7 @@ export function App() {
           project={project}
           tabs={tabs}
           accounts={state.accounts}
+          usage={state.usage ?? []}
           activeTab={activeTab}
           onActivate={(id) => activate(project.id, id)}
         />

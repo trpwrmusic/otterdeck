@@ -79,6 +79,22 @@ export interface ProjectView {
   icon: string | null;
 }
 
+export interface UsageWindow {
+  key: string;
+  /** e.g. "Aktuelle Sitzung", "Woche, alle Modelle" */
+  label: string;
+  percent: number;
+  resetsAt: number | null;
+}
+
+/** Plan usage limits of one account, as last reported by a Claude session (status line). */
+export interface UsageView {
+  account: string;
+  /** When it was reported (ms). */
+  at: number;
+  windows: UsageWindow[];
+}
+
 export interface AccountView {
   /** Absolute config dir. */
   dir: string;
@@ -93,6 +109,7 @@ export interface AppState {
   accounts: AccountView[];
   /** Group name → icon version for groups that have an own icon. */
   groupIcons: Record<string, string>;
+  usage: UsageView[];
   /** Code version the server runs; the window reloads when it changes. */
   version: string;
   /** available: newer code on disk · pending: restart waits for Claude to finish */

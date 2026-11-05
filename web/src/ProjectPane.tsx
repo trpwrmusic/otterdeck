@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
-import type { AccountView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
+import type { AccountView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
 import { ContextMenu, Kbd, ProjectAvatar, StatusMark } from './bits';
 import { ChangesPanel } from './ChangesPanel';
+import { UsageCard } from './UsageCard';
 import { COMMENTS_LEAD, DiffView, FileView, formatComments, type ReviewComment } from './DiffView';
 import { TerminalView } from './TerminalView';
 import { ChatView } from './chat/ChatView';
@@ -20,6 +21,7 @@ interface Props {
   project: ProjectView;
   tabs: TabView[];
   accounts: AccountView[];
+  usage: UsageView[];
   activeTab: string | null; // null = start page
   onActivate: (tabId: string | null) => void;
 }
@@ -34,7 +36,7 @@ function tabAttention(t: TabView) {
 const RUNNING = new Set(['starting', 'ready', 'working', 'waiting', 'done']);
 const fileName = (p: string) => p.split('/').pop() ?? p;
 
-export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: Props) {
+export function ProjectPane({ project, tabs, accounts, usage, activeTab, onActivate }: Props) {
   const [views, setViews] = usePersisted<ViewTab[]>(`otter.views.${project.id}`, []);
   const [comments, setComments] = usePersisted<ReviewComment[]>(`otter.comments.${project.id}`, []);
   const [panelOpen, setPanelOpen] = usePersisted('otter.panel', true);
@@ -297,6 +299,13 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
             onOpenDiff={(p) => openView('diff', p)}
             onOpenFile={(p) => openView('file', p)}
             activePath={currentView?.path ?? null}
+            footer={
+              <UsageCard
+                account={(current?.kind === 'claude' ? current.account : null) ?? tabs.find((t) => t.kind === 'claude')?.account ?? project.account}
+                accounts={accounts}
+                usage={usage}
+              />
+            }
           />
         )}
       </div>

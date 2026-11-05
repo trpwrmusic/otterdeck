@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronRight, File, Folder, FolderOpen, RefreshCw } from 'lucide-react';
 import type { ChangedFile, Changes, CompareMode, DirEntry, ProjectView } from '../../shared/types';
 import { api, useOnFileChange, usePersisted } from './api';
@@ -19,6 +19,8 @@ interface Props {
   onOpenDiff: (path: string) => void;
   onOpenFile: (path: string) => void;
   activePath: string | null;
+  /** Shown below the list (usage limits; later the phone connection). */
+  footer?: ReactNode;
 }
 
 export function ChangesPanel(props: Props) {
@@ -34,7 +36,8 @@ export function ChangesPanel(props: Props) {
           Dateien
         </button>
       </div>
-      {tab === 'changes' ? <ChangeList {...props} /> : <FileTree {...props} />}
+      <div className="panel-body">{tab === 'changes' ? <ChangeList {...props} /> : <FileTree {...props} />}</div>
+      {props.footer}
     </aside>
   );
 }

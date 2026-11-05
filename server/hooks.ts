@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DATA_DIR, HOOK_SCRIPT, NODE_BIN, slash } from './config.ts';
+import { DATA_DIR, HOOK_SCRIPT, NODE_BIN, STATUS_SCRIPT, slash } from './config.ts';
 
 /** Hook events Otterdeck listens to. Passed to Claude with --settings, so your own settings stay untouched. */
 const EVENTS = [
@@ -26,7 +26,9 @@ export function writeHookSettings() {
       },
     ];
   }
-  fs.writeFileSync(HOOK_SETTINGS, JSON.stringify({ hooks }, null, 2));
+  // The status line carries the plan's usage limits, which Otterdeck shows per account.
+  const statusLine = { type: 'command', command: `"${slash(NODE_BIN)}" "${slash(STATUS_SCRIPT)}"`, padding: 0 };
+  fs.writeFileSync(HOOK_SETTINGS, JSON.stringify({ hooks, statusLine }, null, 2));
 }
 
 const base = (p: unknown) => (typeof p === 'string' ? path.basename(p) : '');

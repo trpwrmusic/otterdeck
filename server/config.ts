@@ -12,6 +12,7 @@ export const DEV_WEB_PORT = 5173;
 export const ROOT = path.resolve(import.meta.dirname, '..');
 export const WEB_DIST = path.join(ROOT, 'dist', 'web');
 export const HOOK_SCRIPT = path.join(ROOT, 'hook', 'otter-hook.mjs');
+export const STATUS_SCRIPT = path.join(ROOT, 'hook', 'otter-status.mjs');
 
 export const DATA_DIR = path.join(
   process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
