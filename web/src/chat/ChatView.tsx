@@ -221,6 +221,11 @@ export function ChatView({ tab, onShowTerminal }: Props) {
 
   const blocks = useMemo(() => toBlocks(items), [items]);
   const lastText = useMemo(() => blocks.reduce((at, b, i) => (b.k === 'item' && b.item.k === 'text' ? i : at), -1), [blocks]);
+  // The newest block is a tool: if it has no result yet it spins in the step list already.
+  const lastBlock = blocks.at(-1);
+  const lastTool = lastBlock?.k === 'steps' ? lastBlock.tools.at(-1) : lastBlock?.k === 'edit' || lastBlock?.k === 'todo' ? lastBlock.tool : null;
+  const lastIsTool = !!lastTool;
+  const openTool = !!lastTool && !lastTool.result;
   const narrow = useNarrow();
   const running = tab.status === 'working';
   const alive = !['exited', 'dormant'].includes(tab.status);
@@ -365,10 +370,11 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               </div>
             ),
           )}
-          {running && (
+          {running && !openTool && (
             <div className="chat-status">
               <span className="mark working" style={{ width: 14, height: 14 }} />
-              {tab.activity ?? 'Arbeitet …'}
+              {/* The step list already names the tool; don't repeat a finished one here. */}
+              {lastIsTool || !tab.activity ? 'Denkt nach …' : tab.activity}
             </div>
           )}
           {tab.status === 'waiting' &&

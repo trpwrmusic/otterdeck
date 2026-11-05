@@ -88,13 +88,19 @@
     padding-top: env(safe-area-inset-top);
   }
 }
-/* Touch: no hover, so the copy button shows on the newest answer and on the one you tap. */
+/* Touch: no hover, so the copy button shows on the answer you tap. */
 @media (hover: none) {
   .code-wrap .copy-btn {
     opacity: 1;
   }
-  .msg-claude-wrap.last .msg-copy,
+  /* Hidden until you tap the answer; then it sits under it instead of floating over the next step. */
+  .msg-copy {
+    display: none;
+  }
   .msg-claude-wrap.tapped .msg-copy {
+    display: block;
+    position: static;
+    margin: 6px 0 4px auto;
     opacity: 1;
   }
 }
