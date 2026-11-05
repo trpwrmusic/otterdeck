@@ -82,6 +82,13 @@ function pollLastChats() {
 }
 // Projects that were only added, never used, don't count as "just used".
 for (const p of data.projects) if (p.lastUsed === p.addedAt) p.lastUsed = 0;
+// Once: "last used" stamps from before 2026-11-05 also counted the terminal's automatic answers and
+// resumed tabs. Real activity comes from the chats themselves, so those stamps start over.
+if (!data.activityV2) {
+  for (const p of data.projects) p.lastUsed = 0;
+  data.activityV2 = true;
+  save();
+}
 pollLastChats();
 setInterval(pollLastChats, 20_000);
 

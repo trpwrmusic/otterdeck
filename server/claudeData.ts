@@ -168,7 +168,8 @@ function chatInfo(file: string, mtime: number): ChatInfo {
     title: raw ? String(raw).replace(/\s+/g, ' ').trim().slice(0, 120) : null,
     cwd: head.find((j) => typeof j.cwd === 'string')?.cwd ?? null,
     entrypoint: head.find((j) => typeof j.entrypoint === 'string')?.entrypoint ?? null,
-    lastAt: lastMessageAt(tail) ?? lastMessageAt(head),
+    // A long compact summary can fill the whole tail; then look further back for the last real message.
+    lastAt: lastMessageAt(tail) ?? lastMessageAt(lines(readTail(file, 2 * 1024 * 1024))) ?? lastMessageAt(head),
   };
   infoCache.set(file, { mtime, info });
   return info;
@@ -262,7 +263,7 @@ export function attachChat(src: { account: string; dir: string; sessionId: strin
 
 function firstPrompt(entries: any[]): string | null {
   for (const j of entries) {
-    if (j.type !== 'user' || j.isSidechain || j.isMeta) continue;
+    if (j.type !== 'user' || j.isSidechain || j.isMeta || j.isCompactSummary || j.isVisibleInTranscriptOnly) continue;
     const c = j.message?.content;
     const text = typeof c === 'string' ? c : Array.isArray(c) ? c.find((x: any) => x.type === 'text')?.text : null;
     if (typeof text === 'string' && text.trim() && !text.trimStart().startsWith('<')) return text.trim();

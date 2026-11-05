@@ -32,6 +32,8 @@ interface Data {
   version: 1;
   projects: ProjectRecord[];
   tabs: TabRecord[];
+  /** Set once the old "last used" stamps were reset (see index.ts). */
+  activityV2?: boolean;
 }
 
 const FILE = path.join(DATA_DIR, 'state.json');
@@ -39,7 +41,7 @@ const FILE = path.join(DATA_DIR, 'state.json');
 function load(): Data {
   try {
     const d = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [] };
+    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [], activityV2: d.activityV2 };
   } catch {
     return { version: 1, projects: [], tabs: [] };
   }

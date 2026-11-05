@@ -176,6 +176,9 @@ export class TranscriptTail {
     }
     if (j.type === 'user') {
       if (j.isMeta) return [];
+      // The summary Claude writes when it compacts is stored as a "user" message, but you didn't write it.
+      // The compact boundary right before it already shows as "Gespräch verdichtet".
+      if (j.isCompactSummary || j.isVisibleInTranscriptOnly) return [];
       const content = j.message?.content;
       // Tool results belong to their tool call.
       if (Array.isArray(content) && content.some((b: any) => b.type === 'tool_result')) {
