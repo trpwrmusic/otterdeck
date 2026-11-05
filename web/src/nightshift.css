@@ -1722,3 +1722,6 @@ button.model-row:hover,
 .effort-bar .effort-note {
   padding: 6px 6px 0;
 }
+.effort-chips {
+  margin-top: 6px;
+}

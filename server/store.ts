@@ -49,7 +49,7 @@ export interface TabRecord {
   mode?: string;
   /** Model id (--model) the session runs with. */
   model?: string;
-  /** Claude's thinking effort (--effort / /effort): low, medium, high. */
+  /** Claude's thinking effort (--effort / /effort): low, medium, high, xhigh, max. */
   effort?: string;
   /** This tab runs `claude setup-token` (connecting a server), not a shell. */
   setupToken?: boolean;

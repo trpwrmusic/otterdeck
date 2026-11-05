@@ -9,7 +9,7 @@ import type { ChatServerMsg, PermissionMode, PromptView, TabStatus, TabView, Ter
 import { CLAUDE_BIN, CLAUDE_TOKEN_FILE, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, IS_WIN, PORT, SERVER_MODE, SHELL_BIN, UPLOAD_DIR } from './config.ts';
 
 /** Claude Code's effort levels Otterdeck offers. */
-export const EFFORTS = new Set(['low', 'medium', 'high']);
+export const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 /** Puts effortLevel (top level and per model) back to how it was before /effort wrote it. */
 function restoreEffortSettings(file: string, before: any) {

@@ -39,7 +39,9 @@ function grouped(list: ModelChoice[]) {
 }
 
 /** agy's "effort": how long the model thinks before it answers. */
-const EFFORT: Record<string, string> = { low: 'schnell', medium: 'normal', high: 'gründlich', max: 'maximal' };
+const EFFORT: Record<string, string> = { low: 'schnell', medium: 'normal', high: 'gründlich', xhigh: 'extra', max: 'maximal' };
+/** Claude Code knows two more levels than Antigravity. */
+const CLAUDE_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const EFFORTS = ['low', 'medium', 'high'];
 const effortOf = (label: string) => label.match(/\((Low|Medium|High|Max)\)$/i)?.[1].toLowerCase() ?? null;
 /** The variant of a model with this effort, or the nearest one it has. */
@@ -49,17 +51,31 @@ function variantFor(row: { variants: { effort: string; m: ModelChoice }[] }, eff
   return [...row.variants].sort((a, b) => Math.abs(order.indexOf(a.effort.toLowerCase()) - want) - Math.abs(order.indexOf(b.effort.toLowerCase()) - want))[0];
 }
 const EFFORT_NOTE = 'Gilt für alle Modelle. Gründlich ist bei schweren Aufgaben besser, aber langsamer.';
-const CLAUDE_EFFORT_NOTE = 'Standard nimmt die Einstellung des Kontos. Gründlich ist bei schweren Aufgaben besser, aber langsamer.';
+const CLAUDE_EFFORT_NOTE = 'Standard nimmt die Einstellung des Kontos. Je mehr, desto besser bei schweren Aufgaben, aber langsamer; maximal kann sehr viele Tokens verbrauchen.';
 
 /** The "Nachdenken" switch. With `withDefault` a "Standard" field (= the account's setting, value null) comes first. */
-function EffortBar({ value, onChange, withDefault, note }: { value: string | null; onChange: (e: string | null) => void; withDefault?: boolean; note: string }) {
-  const options: (string | null)[] = withDefault ? [null, ...EFFORTS] : EFFORTS;
+function EffortBar({
+  value,
+  onChange,
+  withDefault,
+  note,
+  levels = EFFORTS,
+}: {
+  value: string | null;
+  onChange: (e: string | null) => void;
+  withDefault?: boolean;
+  note: string;
+  levels?: string[];
+}) {
+  const options: (string | null)[] = withDefault ? [null, ...levels] : levels;
+  // More than four fields don't fit a switch on a phone: chips that wrap instead.
+  const chips = options.length > 4;
   return (
     <div className="effort-bar">
       <div className="effort-head">Nachdenken</div>
-      <div className="seg">
+      <div className={chips ? 'chip-row effort-chips' : 'seg'}>
         {options.map((e) => (
-          <button key={e ?? 'std'} className={value === e ? 'on' : ''} onClick={() => onChange(e)}>
+          <button key={e ?? 'std'} className={chips ? `chip${value === e ? ' sel' : ''}` : value === e ? 'on' : ''} onClick={() => onChange(e)}>
             {e ? EFFORT[e] : 'Standard'}
           </button>
         ))}
@@ -114,7 +130,7 @@ function ModelList({
               <ProviderIcon provider={p} size={13} /> {PROVIDER_LABEL[p]}
             </div>
           )}
-          {p === 'claude' && onClaudeEffort && <EffortBar withDefault value={claudeEffort ?? null} onChange={onClaudeEffort} note={CLAUDE_EFFORT_NOTE} />}
+          {p === 'claude' && onClaudeEffort && <EffortBar withDefault levels={CLAUDE_EFFORTS} value={claudeEffort ?? null} onChange={onClaudeEffort} note={CLAUDE_EFFORT_NOTE} />}
           {p === 'agy' && <EffortBar value={effort} onChange={(e) => setEffort(e ?? 'medium')} note={EFFORT_NOTE} />}
           <button className={`model-row${current?.provider === p && !current.model ? ' sel' : ''}`} onClick={() => onPick({ provider: p, model: null, effort: p === 'claude' ? claudeEffort ?? null : undefined })}>
             <span className="model-name">Standard</span>
@@ -436,11 +452,11 @@ export function ComposerSheet({ tab }: { tab: TabView }) {
             {provider === 'claude' && (
               <>
                 <div className="sheet-sub">Nachdenken</div>
-                <div className="seg">
-                  {EFFORTS.map((e) => (
+                <div className="chip-row effort-chips">
+                  {CLAUDE_EFFORTS.map((e) => (
                     <button
                       key={e}
-                      className={tab.effort === e ? 'on' : ''}
+                      className={`chip${tab.effort === e ? ' sel' : ''}`}
                       disabled={busy}
                       onClick={() => api.setEffort(tab.id, e).catch((err) => setError(err.message))}
                     >
