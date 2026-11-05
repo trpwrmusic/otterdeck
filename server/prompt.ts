@@ -3,8 +3,9 @@
 // screen is the source of truth: if it shows a menu with "Esc to cancel", Claude is waiting for you.
 import type { PermissionMode, PromptView } from '../shared/types.ts';
 
-const OPTION = /^\s*(❯\s*)?(\d{1,2})\.\s+(.+?)\s*$/;
-const FOOTER = /Esc to cancel|Enter to select|↑\/↓ to navigate/;
+// Claude marks the selected option with ❯, Antigravity (agy) with >.
+const OPTION = /^\s*([❯>]\s*)?(\d{1,2})\.\s+(.+?)\s*$/;
+const FOOTER = /Esc to cancel|Enter to select|↑\/↓ to navigate|↑\/↓ Navigate/;
 const RULE = /^[\s─━╌┄—-]+$/;
 
 export function parsePrompt(screen: string[]): PromptView | null {
@@ -43,9 +44,9 @@ export function parsePrompt(screen: string[]): PromptView | null {
     let i = footer - 1;
     while (i >= 0 && !lines[i].trim()) i--;
     for (; i >= 0 && i >= footer - 12; i--) {
-      const m = lines[i].match(/^\s*(❯\s+|\s{2,})(\S.*)$/);
+      const m = lines[i].match(/^\s*([❯>]\s+|\s{2,})(\S.*)$/);
       if (!m || !lines[i].trim() || /^\d{1,2}\./.test(m[2])) break;
-      block.unshift({ i, label: m[2].trim(), sel: m[1].includes('❯') });
+      block.unshift({ i, label: m[2].trim(), sel: /[❯>]/.test(m[1]) });
     }
     if (block.length >= 2 && block.filter((b) => b.sel).length === 1) {
       block.forEach((b, k) => {

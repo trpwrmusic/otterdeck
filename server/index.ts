@@ -7,6 +7,7 @@ import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/t
 import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, SERVER_MODE, UPLOAD_DIR, WEB_DIST } from './config.ts';
 import { recordUsage, usageViews } from './usage.ts';
 import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
+import { AGY_AVAILABLE, agyConversations } from './agy.ts';
 import { NOLA_AVAILABLE, projectFor, claudePrompt, moveTask, projectTasks, searchTasks, setSubtask, taskDetail } from './nola.ts';
 import { isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
@@ -124,6 +125,7 @@ function state(): AppState {
     server: serverView(),
     serverMode: SERVER_MODE,
     nola: NOLA_AVAILABLE,
+    agy: AGY_AVAILABLE,
     version: VERSION,
     update: { ...update },
   };
@@ -647,7 +649,8 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, slashCommands(p.path, tab?.rec.account || p.account || DEFAULT_CLAUDE_DIR));
       }
       if (parts[3] === 'conversations')
-        return json(res, 200, conversations(p.path));
+        // Claude's and Antigravity's chats of this folder, newest first.
+        return json(res, 200, [...conversations(p.path), ...(AGY_AVAILABLE ? agyConversations(p.path) : [])].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 9));
       if (parts[3] === 'reveal' && method === 'POST') {
         if (process.platform === 'win32') spawn('explorer.exe', [p.path], { detached: true, stdio: 'ignore' }).unref();
         return json(res, 200, { ok: true });
@@ -658,7 +661,8 @@ const server = http.createServer(async (req, res) => {
     if (parts[1] === 'tabs' && !parts[2] && method === 'POST') {
       const body = await readBody(req);
       if (!data.projects.some((p) => p.id === body.projectId)) return json(res, 400, { error: 'project' });
-      const kind = body.kind === 'shell' ? 'shell' : 'claude';
+      const kind = body.kind === 'shell' ? 'shell' : body.kind === 'agy' ? 'agy' : 'claude';
+      if (kind === 'agy' && !AGY_AVAILABLE) return json(res, 400, { error: 'Die Antigravity-CLI (agy) ist nicht installiert.' });
       const tab = createTab(
         body.projectId,
         kind,
@@ -757,7 +761,7 @@ server.on('upgrade', (req, socket, head) => {
     }
     if (url.pathname === '/ws/chat') {
       const tab = tabs.get(url.searchParams.get('tab') ?? '');
-      if (!tab || tab.rec.kind !== 'claude') return ws.close(4404, 'tab');
+      if (!tab || (tab.rec.kind !== 'claude' && tab.rec.kind !== 'agy')) return ws.close(4404, 'tab');
       tab.attachChat(ws);
       ws.on('close', () => tab.detachChat(ws));
       return;

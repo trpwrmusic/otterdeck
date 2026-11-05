@@ -63,7 +63,7 @@ export function CommandPalette({ state, actions, onOpenProject, onOpenTab, onOpe
   const commands = useMemo<Command[]>(() => {
     const project = (id: string) => state.projects.find((p) => p.id === id);
     const sessions: Command[] = state.tabs
-      .filter((t) => t.kind === 'claude' && t.status !== 'dormant')
+      .filter((t) => (t.kind === 'claude' || t.kind === 'agy') && t.status !== 'dormant')
       .sort((a, b) => b.changedAt - a.changedAt)
       .map((t) => {
         const p = project(t.projectId);

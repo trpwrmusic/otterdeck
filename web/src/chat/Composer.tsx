@@ -66,7 +66,7 @@ export function ModeMenu({ tab }: { tab: TabView }) {
       </button>
       {open && (
         <div className="mode-menu" role="menu">
-          {MODES.map((m) => (
+          {MODES.filter((m) => tab.kind !== 'agy' || m.id !== 'bypass').map((m) => (
             <button key={m.id} className={`mode-item${m.id === tab.mode ? ' sel' : ''}`} onClick={() => choose(m.id)} disabled={busy !== null}>
               <m.icon size={15} />
               <span className="mode-text">

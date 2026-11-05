@@ -1,6 +1,7 @@
 // Types shared between the Otterdeck server and the web UI.
 
-export type TabKind = 'claude' | 'shell';
+/** claude = Claude Code, agy = Antigravity CLI (Google), shell = PowerShell/bash. */
+export type TabKind = 'claude' | 'agy' | 'shell';
 
 /**
  * dormant  – remembered from an earlier run, nothing is running yet (starts when opened)
@@ -176,6 +177,8 @@ export interface AppState {
   serverMode: boolean;
   /** NOLA can be reached (laptop with the nola.ps1 helper). */
   nola: boolean;
+  /** The Antigravity CLI (agy) is installed: tabs with Google's agent next to Claude. */
+  agy: boolean;
   /** This window is the remote page (phone), not the PC. */
   isRemote?: boolean;
   /** Code version the server runs; the window reloads when it changes. */
@@ -194,8 +197,10 @@ export interface Conversation {
   sessionId: string;
   title: string;
   updatedAt: number;
-  /** Claude config dir the chat belongs to. */
+  /** Claude config dir the chat belongs to ("agy" for Antigravity). */
   account: string;
+  /** Which CLI it came from (missing = Claude). */
+  provider?: 'claude' | 'agy';
 }
 
 /** A past conversation anywhere on this computer. */

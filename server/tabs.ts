@@ -17,6 +17,7 @@ const pty: typeof Pty = await import('node-pty')
     return m.default ?? m;
   });
 import { HOOK_SETTINGS, describePermission, describeTool, shorten } from './hooks.ts';
+import { AGY_BIN, AgyTranscriptTail, agyBusy, agyModeFlag, agyTranscript, agyTitle, describeAgyTool, lastConversationFor, parseAgyMode } from './agy.ts';
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
 import { TranscriptTail } from './transcript.ts';
@@ -85,6 +86,96 @@ class Tab {
   cols = 120;
   rows = 32;
 
+  /** Claude Code or Antigravity: an agent with chat view, modes and dialogs (not a shell). */
+  get agent() {
+    return this.rec.kind === 'claude' || this.rec.kind === 'agy';
+  }
+  startedAt = 0;
+  /** agy reported through its hooks; until then the screen tells the status. */
+  private agyHooks = false;
+
+  /** Antigravity's status from the screen (fallback until hooks arrive) and its conversation id. */
+  private detectAgy(screen: string[]) {
+    if (!this.rec.claudeSessionId) {
+      // No SessionStart hook yet: agy's own "last conversation in this folder", if it is from this tab.
+      const id = this.project ? lastConversationFor(this.project.path) : null;
+      try {
+        if (id && fs.statSync(agyTranscript(id)).mtimeMs >= this.startedAt - 2000) {
+          this.rec.claudeSessionId = id;
+          save();
+          this.resetChat();
+        }
+      } catch {}
+    }
+    if (this.status === 'starting' && /\? for shortcuts|esc to cancel/.test(screen.join('\n'))) {
+      this.setStatus('ready');
+      changed();
+    }
+    if (this.agyHooks || this.prompt) return;
+    const busy = agyBusy(screen);
+    if (busy === true && this.status !== 'working') {
+      this.setStatus('working');
+      changed();
+    } else if (busy === false && this.status === 'working') {
+      this.unseen = true;
+      this.setStatus('done');
+      changed();
+    }
+  }
+
+  /** Hooks from ~/.gemini/config/hooks.json (camelCase payload). */
+  private agyHook(event: string, p: any) {
+    if (this.rec.kind !== 'agy') return;
+    this.agyHooks = true;
+    const id = typeof p.conversationId === 'string' ? p.conversationId : null;
+    if (id && id !== this.rec.claudeSessionId) {
+      this.rec.claudeSessionId = id;
+      save();
+      this.resetChat();
+    }
+    switch (event) {
+      case 'SessionStart':
+        if (this.status === 'starting' || this.status === 'dormant') this.setStatus('ready');
+        break;
+      case 'PreInvocation':
+        if (this.status !== 'working') {
+          if (p.lastUserInput) this.lastPrompt = shorten(String(p.lastUserInput).replace(/<[^>]+>/g, ' '), 200);
+          this.question = null;
+          this.unseen = false;
+          this.setStatus('working');
+          touchProject(this.rec.projectId);
+        }
+        break;
+      case 'PreToolUse':
+        this.activity = describeAgyTool(p.toolCall?.name ?? '', p.toolCall?.args);
+        this.question = null;
+        if (this.status !== 'waiting') this.setStatus('working');
+        break;
+      case 'PostToolUse':
+        if (this.status === 'waiting' && !this.prompt) this.setStatus('working');
+        break;
+      case 'Stop': {
+        if (p.fullyIdle === false) break;
+        const title = this.rec.claudeSessionId ? agyTitle(this.rec.claudeSessionId) : null;
+        if (title) this.title = title.slice(0, 60);
+        // agy indexes new conversations late; until then your first message names the tab.
+        else if (!this.title && this.lastPrompt) this.title = this.lastPrompt.replace(/\s+/g, ' ').slice(0, 40);
+        this.activity = null;
+        this.question = null;
+        this.unseen = true;
+        this.setStatus('done');
+        break;
+      }
+      default:
+        return;
+    }
+    if (this.prompt && event !== 'Stop') {
+      this.question = promptSummary(this.prompt);
+      this.setStatus('waiting');
+    }
+    changed();
+  }
+
   /** Raw output listeners (e.g. catching the token `claude setup-token` prints). */
   watchers = new Set<(d: string) => void>();
 
@@ -107,12 +198,12 @@ class Tab {
       id: this.rec.id,
       projectId: this.rec.projectId,
       kind: this.rec.kind,
-      title: this.title || (this.rec.kind === 'claude' ? 'Claude' : 'Shell'),
+      title: this.title || (this.rec.kind === 'claude' ? 'Claude' : this.rec.kind === 'agy' ? 'Antigravity' : 'Shell'),
       status: this.status,
       activity: this.activity,
       question: this.question,
       prompt: this.prompt,
-      mode: this.rec.kind === 'claude' ? this.mode : null,
+      mode: this.agent ? this.mode : null,
       lastPrompt: this.lastPrompt,
       lastMessage: this.lastMessage,
       unseen: this.unseen,
@@ -165,6 +256,16 @@ class Tab {
       // A first message (e.g. review comments) starts the conversation right away.
       if (opts.prompt) args.push('--', opts.prompt);
       file = CLAUDE_BIN;
+    } else if (this.rec.kind === 'agy') {
+      // Antigravity CLI: same terminal, its own flags. It signs in with your Google account (keyring).
+      file = AGY_BIN;
+      args = ['--add-dir', UPLOAD_DIR];
+      const mode = agyModeFlag(this.rec.mode);
+      if (mode) args.push('--mode', mode);
+      const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
+      if (resume) args.push('--conversation', resume);
+      if (opts.prompt) args.push('-i', opts.prompt);
+      env.AGY_CLI_DISABLE_AUTO_UPDATE = env.AGY_CLI_DISABLE_AUTO_UPDATE ?? 'false';
     } else if (this.rec.setupToken) {
       // Always the default account (~/.claude): that is the one the server works with.
       delete env.CLAUDE_CONFIG_DIR;
@@ -189,6 +290,8 @@ class Tab {
       let clean = t.replace(/^[^\p{L}\p{N}]+/u, '').trim();
       // A shell sets its own executable path as the title ("C:\Windows\System32\…\powershell.exe"); that says nothing.
       if (this.rec.kind === 'shell' && /^[a-z]:\\|\.exe$/i.test(clean)) clean = 'Shell';
+      // agy puts its working folder in the title; the conversation's own title comes from agyTitle().
+      if (this.rec.kind === 'agy' && /^([a-z]:\\|~|\/)/i.test(clean)) return;
       if (clean && clean !== this.title) {
         this.title = clean.slice(0, 60);
         changed();
@@ -213,7 +316,8 @@ class Tab {
 
     this.exitCode = null;
     this.activity = this.question = null;
-    this.setStatus(this.rec.kind === 'claude' ? 'starting' : 'ready');
+    this.startedAt = Date.now();
+    this.setStatus(this.agent ? 'starting' : 'ready');
     changed();
 
     // A killed process can still report back after a restart; only listen to the current one.
@@ -269,7 +373,7 @@ class Tab {
     if (!this.proc) return;
     this.proc.write(d);
     // Esc interrupts Claude; no Stop hook follows an interrupt.
-    if (this.rec.kind === 'claude' && d === '\x1b' && (this.status === 'working' || this.status === 'waiting')) {
+    if (this.agent && d === '\x1b' && (this.status === 'working' || this.status === 'waiting')) {
       this.activity = this.question = null;
       this.setStatus('ready');
       changed();
@@ -288,6 +392,7 @@ class Tab {
 
   /** Claude's transcript of this tab's conversation. */
   transcriptFile(): string | null {
+    if (this.rec.kind === 'agy') return this.rec.claudeSessionId ? agyTranscript(this.rec.claudeSessionId) : null;
     const id = this.rec.claudeSessionId;
     const project = this.project;
     if (!id || !project) return this.transcriptPath;
@@ -314,7 +419,7 @@ class Tab {
 
   private openChat() {
     const file = this.transcriptFile();
-    this.chat = file ? new TranscriptTail(file) : null;
+    this.chat = file ? (this.rec.kind === 'agy' ? new AgyTranscriptTail(file) : new TranscriptTail(file)) : null;
     this.chat?.load();
     this.chatTimer = setInterval(() => {
       if (!this.chat) {
@@ -348,7 +453,9 @@ class Tab {
   async type(text: string) {
     if (!this.proc) return false;
     // "!" switches Claude Code into bash mode; it has to arrive on its own, before the command.
-    if (text.startsWith('!')) {
+    // agy's hooks don't carry your words reliably; remember them for the tab title and the sidebar.
+    if (this.rec.kind === 'agy') this.lastPrompt = shorten(text, 200);
+    if (text.startsWith('!') && this.rec.kind === 'claude') {
       this.proc.write('!');
       await new Promise((r) => setTimeout(r, 150));
       text = text.slice(1).replace(/^\s+/, '');
@@ -361,7 +468,7 @@ class Tab {
         await new Promise((r) => setTimeout(r, 6));
       }
       if (i < lines.length - 1) {
-        this.proc?.write('\\\r');
+        this.proc?.write(this.rec.kind === 'agy' ? '\n' : '\\\r');
         await new Promise((r) => setTimeout(r, 15));
       }
     }
@@ -383,9 +490,10 @@ class Tab {
 
   /** Switches the permission mode like Shift+Tab in the terminal, until the footer shows the wanted one. */
   async setMode(target: PermissionMode) {
-    if (!this.proc || this.rec.kind !== 'claude') return false;
+    if (!this.proc || !this.agent) return false;
+    const parse = (s: string[]) => (this.rec.kind === 'agy' ? parseAgyMode(s) : parseMode(s));
     for (let i = 0; i < 6; i++) {
-      const now = parseMode(this.screen()) ?? this.mode;
+      const now = parse(this.screen()) ?? this.mode;
       if (now === target) {
         this.mode = target;
         changed();
@@ -395,22 +503,23 @@ class Tab {
       // Wait until Claude has redrawn its footer with the next mode, so one press counts once.
       for (let w = 0; w < 20; w++) {
         await new Promise((r) => setTimeout(r, 60));
-        const next = parseMode(this.screen());
+        const next = parse(this.screen());
         if (next && next !== now) break;
       }
     }
-    this.mode = parseMode(this.screen()) ?? this.mode;
+    this.mode = parse(this.screen()) ?? this.mode;
     changed();
     return this.mode === target;
   }
 
   /** Looks at the screen shortly after output settles: is a dialog up, or did it just go away? */
   private scheduleDetect() {
-    if (this.rec.kind !== 'claude' || this.detectTimer) return;
+    if (!this.agent || this.detectTimer) return;
     this.detectTimer = setTimeout(() => {
       this.detectTimer = null;
       const screen = this.screen();
-      const mode = parseMode(screen);
+      if (this.rec.kind === 'agy') this.detectAgy(screen);
+      const mode = this.rec.kind === 'agy' ? parseAgyMode(screen) : parseMode(screen);
       if (mode && mode !== this.mode) {
         this.mode = mode;
         changed();
@@ -515,6 +624,7 @@ class Tab {
   }
 
   hook(event: string, p: any) {
+    if (event.startsWith('agy:')) return this.agyHook(event.slice(4), p);
     if (this.rec.kind !== 'claude') return;
     switch (event) {
       case 'SessionStart':
@@ -609,7 +719,7 @@ export function touchProject(id: string) {
 /** account: the chat's own account (resuming) or a one-off choice; otherwise the project's default for new chats. */
 export function createTab(
   projectId: string,
-  kind: 'claude' | 'shell',
+  kind: 'claude' | 'agy' | 'shell',
   resume?: string,
   prompt?: string,
   account?: string,

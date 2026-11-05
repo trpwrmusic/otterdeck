@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CloudUpload, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
+import { CloudUpload, Orbit, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
 import type { AccountView, RemoteView, ServerView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
 import { ContextMenu, Kbd, ProjectAvatar, StatusMark } from './bits';
@@ -29,6 +29,8 @@ interface Props {
   server?: ServerView | null;
   serverMode?: boolean;
   nola?: boolean;
+  /** Antigravity CLI installed. */
+  agy?: boolean;
   /** A NOLA task to show in the side panel (from the search). */
   focusTask?: number | null;
   activeTab: string | null; // null = start page
@@ -45,7 +47,7 @@ function tabAttention(t: TabView) {
 const RUNNING = new Set(['starting', 'ready', 'working', 'waiting', 'done']);
 const fileName = (p: string) => p.split('/').pop() ?? p;
 
-export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, server, serverMode, nola, focusTask, activeTab, onActivate }: Props) {
+export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, server, serverMode, nola, agy, focusTask, activeTab, onActivate }: Props) {
   const [handoffTab, setHandoffTab] = useState<string | null>(null);
   // A NOLA task picked in the search shows up in the side panel, so the panel has to be open.
   useEffect(() => {
@@ -64,8 +66,8 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
 
   const currentView = views.find((v) => v.id === activeTab) ?? null;
   const current = currentView ? null : tabs.find((t) => t.id === activeTab) ?? (activeTab?.startsWith('view:') ? tabs[0] ?? null : null);
-  if (current?.kind === 'claude') lastClaude.current = current.id;
-  const viewOf = (t: TabView) => (t.kind === 'claude' ? tabViews[t.id] ?? defaultView : 'terminal');
+  if (current && (current.kind === 'claude' || current.kind === 'agy')) lastClaude.current = current.id;
+  const viewOf = (t: TabView) => ((t.kind === 'claude' || t.kind === 'agy') ? tabViews[t.id] ?? defaultView : 'terminal');
   const setViewOf = (id: string, v: 'chat' | 'terminal') => setTabViews((m) => ({ ...m, [id]: v }));
   const currentMode = current ? viewOf(current) : 'terminal';
 
@@ -78,7 +80,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
 
   // Ctrl+Shift+Space (see shortcuts.ts) flips the Claude tab in front.
   useEffect(() => {
-    const flip = () => current?.kind === 'claude' && setViewOf(current.id, viewOf(current) === 'chat' ? 'terminal' : 'chat');
+    const flip = () => current && (current.kind === 'claude' || current.kind === 'agy') && setViewOf(current.id, viewOf(current) === 'chat' ? 'terminal' : 'chat');
     window.addEventListener('otter:toggle-view', flip);
     return () => window.removeEventListener('otter:toggle-view', flip);
   });
@@ -89,7 +91,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
   // The header shows the account of the chat you're looking at, else the one new chats get.
   const shownAccount = multi ? (current?.kind === 'claude' ? accountOf(current.account) : null) ?? projectDefault : null;
 
-  const open = async (kind: 'claude' | 'shell', resume?: string, account?: string) => {
+  const open = async (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string) => {
     const { id } = await api.newTab(project.id, kind, resume, undefined, account);
     onActivate(id);
   };
@@ -161,7 +163,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
           )}
         </div>
         <div className="pane-actions">
-          {current?.kind === 'claude' && !currentView && (
+          {current && (current.kind === 'claude' || current.kind === 'agy') && !currentView && (
             <div className="segmented view-switch" title="Strg+Umschalt+Leertaste">
               <Glide selector="button.on" watch={[currentMode, current.id]} />
               <button className={currentMode === 'terminal' ? 'on' : ''} onClick={() => setViewOf(current.id, 'terminal')}>
@@ -175,6 +177,11 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
           {current?.kind === 'claude' && !currentView && server?.tokenAt && !serverMode && (
             <button className="btn small" onClick={() => setHandoffTab(current.id)} title="Auf Server abgeben: Claude macht dort weiter, du kannst den Laptop zuklappen">
               <CloudUpload size={15} /> Auf Server
+            </button>
+          )}
+          {agy && (
+            <button className="btn small" onClick={() => open('agy')} title="Antigravity starten (Google, agy)">
+              <Orbit size={15} /> Antigravity
             </button>
           )}
           <button className="btn small" onClick={() => open('shell')} title="Shell öffnen (Strg+Umschalt+^)">
@@ -231,6 +238,8 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
                   <StatusMark attention={tabAttention(t)} size={12} />
                 ) : t.kind === 'claude' ? (
                   <Sparkles size={13} />
+                ) : t.kind === 'agy' ? (
+                  <Orbit size={13} />
                 ) : (
                   <SquareTerminal size={13} />
                 )}
@@ -306,7 +315,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
                 <TerminalView tab={current} active />
               </div>
             ) : (
-              <StartPage project={project} accounts={accounts} onOpen={open} />
+              <StartPage project={project} accounts={accounts} onOpen={open}  agy={agy} />
             )}
           </div>
         </div>
@@ -345,10 +354,12 @@ function StartPage({
   project,
   accounts,
   onOpen,
+  agy,
 }: {
   project: ProjectView;
   accounts: AccountView[];
-  onOpen: (kind: 'claude' | 'shell', resume?: string, account?: string) => void;
+  onOpen: (kind: 'claude' | 'agy' | 'shell', resume?: string, account?: string) => void;
+  agy?: boolean;
 }) {
   const label = (dir: string) => (accounts.length > 1 ? accounts.find((a) => a.dir.toLowerCase() === dir.toLowerCase())?.label : null);
   const [convs, setConvs] = useState<Conversation[] | null>(null);
@@ -371,6 +382,11 @@ function StartPage({
           <button className="btn big primary" onClick={() => onOpen('claude')} disabled={!project.exists}>
             <Sparkles size={18} /> Claude starten
           </button>
+          {agy && (
+            <button className="btn big" onClick={() => onOpen('agy')} disabled={!project.exists}>
+              <Orbit size={18} /> Antigravity
+            </button>
+          )}
           <button className="btn big" onClick={() => onOpen('shell')} disabled={!project.exists}>
             <SquareTerminal size={18} /> Shell
           </button>
@@ -385,10 +401,20 @@ function StartPage({
           <h3>Weitermachen</h3>
           <div className="conv-grid">
             {convs.map((c) => (
-              <button key={c.sessionId} className="conv" onClick={() => onOpen('claude', c.sessionId, c.account)}>
+              <button
+                key={c.sessionId}
+                className="conv"
+                onClick={() => (c.provider === 'agy' ? onOpen('agy', c.sessionId) : onOpen('claude', c.sessionId, c.account))}
+              >
                 <span className="conv-title">{c.title}</span>
                 <span className="conv-meta">
-                  {label(c.account) && <span className="pill quiet tiny">{label(c.account)}</span>}
+                  {c.provider === 'agy' ? (
+                    <span className="pill quiet tiny agy-pill">
+                      <Orbit size={10} /> Antigravity
+                    </span>
+                  ) : (
+                    label(c.account) && <span className="pill quiet tiny">{label(c.account)}</span>
+                  )}
                   <span className="conv-time">{timeAgo(c.updatedAt)}</span>
                 </span>
               </button>

@@ -7,6 +7,9 @@ import { api } from '../api';
 export function germanQuestion(p: PromptView): string {
   const q = p.question.trim();
   if (/^Do you want to proceed\?$/i.test(q)) return 'Darf Claude das ausführen?';
+  // Antigravity (agy)
+  if (/^Run this command\?$/i.test(q)) return 'Diesen Befehl ausführen?';
+  if (/^Do you trust the contents of this project\?$/i.test(q)) return 'Vertraust du diesem Ordner?';
   let m = q.match(/^Do you want to create (.+)\?$/i);
   if (m) return `Darf Claude ${m[1]} anlegen?`;
   m = q.match(/^Do you want to make this edit to (.+)\?$/i);
@@ -20,6 +23,15 @@ export function germanLabel(label: string): string {
   if (/^yes$/i.test(label)) return 'Ja';
   if (/^no$/i.test(label)) return 'Nein';
   if (/^type something\.?$/i.test(label)) return 'Eigene Antwort';
+  // Antigravity (agy)
+  if (/^yes, run command$/i.test(label)) return 'Ja, ausführen';
+  if (/^no, cancel$/i.test(label)) return 'Nein, abbrechen';
+  if (/^yes, i trust this folder$/i.test(label)) return 'Ja, ich vertraue dem Ordner';
+  if (/^no, exit$/i.test(label)) return 'Nein, beenden';
+  let m = label.match(/^Yes, and always allow in this conversation for commands that start with '(.+)'$/i);
+  if (m) return `Ja, in diesem Gespräch immer: „${m[1]} …“`;
+  m = label.match(/^Yes, and always allow for commands that start with '(.+)' \(Persist to settings\.json\)$/i);
+  if (m) return `Ja, dauerhaft immer: „${m[1]} …“`;
   return label.replace(/^Yes, and /i, 'Ja, und ').replace(/^No, and /i, 'Nein, und ');
 }
 
@@ -28,6 +40,8 @@ const TITLES: Record<string, string> = {
   'create file': 'Neue Datei',
   'edit file': 'Datei ändern',
   'fetch': 'Webseite',
+  'requesting permission for:': 'Befehl',
+  'accessing workspace:': 'Ordner',
 };
 
 /**

@@ -182,14 +182,15 @@ export function TerminalView({ tab, active }: { tab: TabView; active: boolean })
     if (active) termRef.current?.focus();
   }, [active, exited]);
 
-  const isClaude = tab.kind === 'claude';
+  const isClaude = tab.kind === 'claude' || tab.kind === 'agy';
+  const agentName = tab.kind === 'agy' ? 'Antigravity' : 'Claude';
   return (
     <div className="term-wrap">
       <div className="term" ref={host} />
       {exited && (
         <div className="term-overlay">
           <div className="overlay-card">
-            <div className="overlay-title">{isClaude ? 'Claude wurde beendet' : 'Die Shell wurde beendet'}</div>
+            <div className="overlay-title">{isClaude ? `${agentName} wurde beendet` : 'Die Shell wurde beendet'}</div>
             <div className="overlay-actions">
               {isClaude && tab.claudeSessionId && (
                 <button className="btn primary" onClick={() => api.restartTab(tab.id)}>

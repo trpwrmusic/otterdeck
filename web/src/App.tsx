@@ -330,6 +330,7 @@ export function App() {
           server={state.server}
           serverMode={state.serverMode}
           nola={state.nola}
+          agy={state.agy}
           focusTask={focusTask}
           activeTab={activeTab}
           onActivate={(id) => activate(project.id, id)}

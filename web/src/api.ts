@@ -92,7 +92,7 @@ export const api = {
       open,
     }),
   dirs: (path: string) => call<string[]>('GET', `/api/fs/dirs?path=${encodeURIComponent(path)}`),
-  newTab: (projectId: string, kind: 'claude' | 'shell', resume?: string, prompt?: string, account?: string) =>
+  newTab: (projectId: string, kind: 'claude' | 'agy' | 'shell', resume?: string, prompt?: string, account?: string) =>
     call<{ id: string }>('POST', '/api/tabs', { projectId, kind, resume, prompt, account }),
   sendToTab: (id: string, text: string, lead?: string) => call('POST', `/api/tabs/${id}/send`, { text, lead }),
   commands: (projectId: string, tabId: string) =>

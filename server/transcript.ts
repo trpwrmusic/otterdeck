@@ -79,7 +79,7 @@ function classify(text: string): { kind: 'message' } | { kind: 'note'; text: str
 export class TranscriptTail {
   private offset = 0;
   private partial = '';
-  private items = new Map<string, ChatItem>();
+  protected items = new Map<string, ChatItem>();
   private order: string[] = [];
   private toolIndex = new Map<string, string>(); // tool_use_id → item id
   private lastShell: string | null = null; // the "!" command waiting for its output
@@ -155,13 +155,17 @@ export class TranscriptTail {
     return [...changed.values()];
   }
 
-  private put(it: ChatItem) {
+  protected itemById(id: string) {
+    return this.items.get(id);
+  }
+
+  protected put(it: ChatItem) {
     if (!this.items.has(it.id)) this.order.push(it.id);
     this.items.set(it.id, it);
     return it;
   }
 
-  private entry(j: any): ChatItem[] {
+  protected entry(j: any): ChatItem[] {
     const at = Date.parse(j.timestamp ?? '') || Date.now();
     if (j.isSidechain) return []; // subagents: their summary arrives as the Task tool's result
     if (j.type === 'assistant') {

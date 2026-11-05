@@ -128,7 +128,8 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   const [slashClosed, setSlashClosed] = useState(false);
 
   useEffect(() => {
-    api.commands(tab.projectId, tab.id).then(setCommands).catch(() => {});
+    // Slash commands are Claude Code's; agy has its own set.
+    if (tab.kind === 'claude') api.commands(tab.projectId, tab.id).then(setCommands).catch(() => {});
   }, [tab.projectId, tab.id]);
 
   // "/" at the start, no space yet: suggest commands and skills.
@@ -445,12 +446,13 @@ export function ChatView({ tab, onShowTerminal }: Props) {
                 ? 'Claude läuft gerade nicht'
                 : shellMode
                   ? narrow ? 'Shell-Befehl' : 'Shell-Befehl · Claude liest die Ausgabe mit'
-                  : narrow ? 'Nachricht an Claude' : 'Nachricht an Claude · ! für einen Shell-Befehl'
+                  : narrow ? (tab.kind === 'agy' ? 'Nachricht an Antigravity' : 'Nachricht an Claude') : tab.kind === 'agy' ? 'Nachricht an Antigravity' : 'Nachricht an Claude · ! für einen Shell-Befehl'
             }
             disabled={!alive}
             onChange={(e) => {
               const v = e.target.value;
-              if (!shellMode && !draft && v.startsWith('!')) {
+              // Bash mode ("!") is a Claude Code feature; agy sends "!" as text.
+              if (!shellMode && !draft && v.startsWith('!') && tab.kind === 'claude') {
                 setShellMode(true);
                 setDraft(v.slice(1).replace(/^\s+/, ''));
               } else setDraft(v);

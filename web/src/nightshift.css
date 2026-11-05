@@ -1337,3 +1337,10 @@
 .usage-card.folded:hover {
   background: #1c1c1f;
 }
+
+/* Antigravity conversations on the start page */
+.agy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

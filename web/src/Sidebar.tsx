@@ -20,7 +20,7 @@ function lastActivity(state: AppState, p: ProjectView) {
   let t = Math.max(p.lastUsed, p.lastChat ?? 0);
   // Only real work moves a project up: a tab that is starting or resuming after a restart doesn't.
   for (const tab of state.tabs)
-    if (tab.projectId === p.id && tab.kind === 'claude' && (tab.status === 'working' || tab.status === 'waiting' || (tab.status === 'done' && tab.unseen)))
+    if (tab.projectId === p.id && (tab.kind === 'claude' || tab.kind === 'agy') && (tab.status === 'working' || tab.status === 'waiting' || (tab.status === 'done' && tab.unseen)))
       t = Math.max(t, tab.changedAt);
   return t;
 }
@@ -384,7 +384,7 @@ export function Sidebar(props: Props) {
         </button>
       </div>
 
-      {state.tabs.some((t) => t.kind === 'claude') && !waiting && !working && !done && <div className="pulse-quiet">Keine Sitzung braucht dich</div>}
+      {state.tabs.some((t) => (t.kind === 'claude' || t.kind === 'agy')) && !waiting && !working && !done && <div className="pulse-quiet">Keine Sitzung braucht dich</div>}
       {(waiting > 0 || working > 0 || done > 0) && (
         <div className="pulse" aria-label="Sitzungen">
           <button className={`pulse-chip${waiting ? ' waiting' : ''}`} disabled={!waiting} onClick={() => onJump('waiting')} title="Zur nächsten wartenden Sitzung (Strg+Umschalt+J)">
@@ -473,7 +473,7 @@ export function Sidebar(props: Props) {
 function Peek({ state, projectId, top }: { state: AppState; projectId: string; top: number }) {
   const p = state.projects.find((x) => x.id === projectId);
   if (!p) return null;
-  const tabs = state.tabs.filter((t) => t.projectId === p.id && t.kind === 'claude' && t.status !== 'dormant');
+  const tabs = state.tabs.filter((t) => t.projectId === p.id && (t.kind === 'claude' || t.kind === 'agy') && t.status !== 'dormant');
   return (
     <div className="peek" style={{ top: Math.min(top, window.innerHeight - 260) }}>
       <div className="peek-head">
