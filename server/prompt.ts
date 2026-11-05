@@ -1,7 +1,7 @@
 // Reads Claude Code's on-screen dialogs (permission prompts, AskUserQuestion) from the mirror terminal.
 // Hooks don't always announce them (a Bash permission prompt can appear with no hook at all), so the
 // screen is the source of truth: if it shows a menu with "Esc to cancel", Claude is waiting for you.
-import type { PromptView } from '../shared/types.ts';
+import type { PermissionMode, PromptView } from '../shared/types.ts';
 
 const OPTION = /^\s*(❯\s*)?(\d{1,2})\.\s+(.+?)\s*$/;
 const FOOTER = /Esc to cancel|Enter to select|↑\/↓ to navigate/;
@@ -82,4 +82,22 @@ export function promptSummary(p: PromptView): string {
   if (p.kind === 'question') return p.question;
   const cmd = p.detail?.split('\n').at(-1);
   return cmd ? `Möchte: ${cmd}` : p.question;
+}
+
+/**
+ * The permission mode from Claude Code's footer: "⏵⏵ auto mode on", "⏵⏵ accept edits on",
+ * "⏸ plan mode on", "bypass permissions on". A footer that shows the input hints but no mode
+ * means the default mode (Claude asks before acting).
+ */
+export function parseMode(screen: string[]): PermissionMode | null {
+  // The footer is the last text on screen; below it there can be many empty rows.
+  const tail = screen.filter((l) => l.trim()).slice(-4).join('\n');
+  if (/bypass permissions on/i.test(tail)) return 'bypass';
+  if (/auto mode on/i.test(tail)) return 'auto';
+  if (/accept edits on/i.test(tail)) return 'acceptEdits';
+  if (/plan mode on/i.test(tail)) return 'plan';
+  if (/manual mode on/i.test(tail)) return 'default';
+  // The idle input box with its hint line and no mode in it.
+  if (/\? for shortcuts|esc to interrupt/i.test(tail) || /^\s*❯\s*$/m.test(tail)) return 'default';
+  return null;
 }

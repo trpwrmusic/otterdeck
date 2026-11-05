@@ -22,6 +22,10 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 /** Shared secret for the hook endpoint. New on every start; only our own tabs know it. */
 export const HOOK_TOKEN = crypto.randomBytes(24).toString('hex');
 
+/** Files and pictures you add in the chat; every Claude tab may read this folder (--add-dir). */
+export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
 export const HOME = os.homedir();
 /** The Claude account used when a project has none of its own. */
 export const DEFAULT_CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || path.join(HOME, '.claude');

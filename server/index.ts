@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
-import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, PORT, WEB_DIST } from './config.ts';
+import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, PORT, UPLOAD_DIR, WEB_DIST } from './config.ts';
 import { allChats, attachChat, conversations, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
@@ -236,6 +236,47 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/suggestions')
       return json(res, 200, suggestions(data.projects.map((p) => p.path)));
 
+    // /api/uploads – a file or picture from the chat box, stored where every Claude tab may read it
+    if (url.pathname === '/api/uploads' && method === 'POST') {
+      const original = path.basename(url.searchParams.get('name') || 'datei');
+      // No spaces or odd characters: the path goes into a message as plain text.
+      const safe =
+        original
+          .normalize('NFKD')
+          .replace(/[̀-ͯ]/g, '') // ä → a, so the name stays readable
+          .replace(/[^\w.-]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(-80) || 'datei';
+      const day = new Date().toISOString().slice(0, 10);
+      const dir = path.join(UPLOAD_DIR, day);
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, `${newId()}-${safe}`);
+      let size = 0;
+      const out = fs.createWriteStream(file);
+      try {
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 30 * 1024 * 1024) throw new Error('Die Datei ist größer als 30 MB.');
+          out.write(chunk);
+        }
+      } catch (err) {
+        out.destroy();
+        fs.rmSync(file, { force: true });
+        return json(res, 413, { error: (err as Error).message });
+      }
+      await new Promise((r) => out.end(r));
+      return json(res, 200, { path: file, name: original, size });
+    }
+    if (url.pathname === '/api/uploads/file' && method === 'GET') {
+      // Thumbnails of what you attached; only files inside the upload folder.
+      const abs = safeJoin(UPLOAD_DIR, path.relative(UPLOAD_DIR, url.searchParams.get('path') ?? ''));
+      const ext = path.extname(abs).toLowerCase();
+      const type = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' }[ext];
+      if (!type || !fs.existsSync(abs)) return json(res, 404, { error: 'not found' });
+      res.writeHead(200, { 'content-type': type, 'cache-control': 'max-age=3600' });
+      return fs.createReadStream(abs).pipe(res);
+    }
+
     // /api/chats – every recent chat; attach = copy one into a project (and optionally open it)
     if (url.pathname === '/api/chats' && method === 'GET') return json(res, 200, allChats(data.projects));
     if (url.pathname === '/api/chats/attach' && method === 'POST') {
@@ -365,6 +406,13 @@ const server = http.createServer(async (req, res) => {
         return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Der Tab läuft gerade nicht.' });
       }
       if (parts[3] === 'screen') return json(res, 200, tabs.get(id)!.screen());
+      if (parts[3] === 'mode' && method === 'POST') {
+        const body = await readBody(req);
+        const modes = ['default', 'acceptEdits', 'plan', 'auto', 'bypass'];
+        if (!modes.includes(body.mode)) return json(res, 400, { error: 'Unbekannter Modus.' });
+        const ok = await tabs.get(id)!.setMode(body.mode);
+        return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Diesen Modus bietet Claude hier nicht an.' });
+      }
       if (parts[3] === 'choose' && method === 'POST') {
         const body = await readBody(req);
         const ok = await tabs.get(id)!.choose(Number(body.n), typeof body.text === 'string' ? body.text : undefined);

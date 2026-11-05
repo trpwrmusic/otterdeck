@@ -9,6 +9,7 @@ import type {
   EventMsg,
   FileContent,
   FileDiff,
+  PermissionMode,
   Suggestion,
   TabView,
 } from '../../shared/types';
@@ -60,6 +61,15 @@ export const api = {
   commands: (projectId: string, tabId: string) =>
     call<{ name: string; description: string; source: string }[]>('GET', `/api/projects/${projectId}/commands?tab=${tabId}`),
   typeToTab: (id: string, text: string) => call('POST', `/api/tabs/${id}/type`, { text }),
+  uploadUrl: (path: string) => '/api/uploads/file?path=' + encodeURIComponent(path),
+  setMode: (id: string, mode: PermissionMode) => call('POST', '/api/tabs/' + id + '/mode', { mode }),
+  /** Uploads a file or picture from the chat box; the server keeps it where Claude may read it. */
+  upload: async (file: File) => {
+    const res = await fetch('/api/uploads?name=' + encodeURIComponent(file.name || 'Bild.png'), { method: 'POST', body: file });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || res.statusText);
+    return json as { path: string; name: string; size: number };
+  },
   choose: (id: string, n: number, text?: string) => call('POST', '/api/tabs/' + id + '/choose', { n, text }),
   keyToTab: (id: string, key: 'allow' | 'deny' | 'stop') => call('POST', `/api/tabs/${id}/key`, { key }),
   changes: (id: string, mode: CompareMode) => call<Changes>('GET', `/api/projects/${id}/changes?mode=${mode}`),

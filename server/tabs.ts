@@ -5,13 +5,13 @@ import pty from 'node-pty';
 import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket } from 'ws';
-import type { ChatServerMsg, PromptView, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
-import { CLAUDE_BIN, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, PORT, SHELL_BIN } from './config.ts';
+import type { ChatServerMsg, PermissionMode, PromptView, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
+import { CLAUDE_BIN, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, PORT, SHELL_BIN, UPLOAD_DIR } from './config.ts';
 import { HOOK_SETTINGS, describePermission, describeTool, shorten } from './hooks.ts';
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
 import { TranscriptTail } from './transcript.ts';
-import { parsePrompt, promptSummary } from './prompt.ts';
+import { parseMode, parsePrompt, promptSummary } from './prompt.ts';
 import { data, newId, save, type ProjectRecord, type TabRecord } from './store.ts';
 
 const { Terminal } = headless as unknown as typeof import('@xterm/headless');
@@ -55,6 +55,7 @@ class Tab {
   question: string | null = null;
   /** The dialog on screen right now (permission or question), read from the mirror terminal. */
   prompt: PromptView | null = null;
+  mode: PermissionMode | null = null;
   private detectTimer: NodeJS.Timeout | null = null;
   lastPrompt: string | null = null;
   lastMessage: string | null = null;
@@ -88,6 +89,7 @@ class Tab {
       activity: this.activity,
       question: this.question,
       prompt: this.prompt,
+      mode: this.rec.kind === 'claude' ? this.mode : null,
       lastPrompt: this.lastPrompt,
       lastMessage: this.lastMessage,
       unseen: this.unseen,
@@ -122,7 +124,7 @@ class Tab {
       if (path.resolve(account).toLowerCase() === path.join(HOME, '.claude').toLowerCase()) delete env.CLAUDE_CONFIG_DIR;
       else env.CLAUDE_CONFIG_DIR = account;
       shareMemory(project.path, account);
-      args = ['--settings', HOOK_SETTINGS];
+      args = ['--settings', HOOK_SETTINGS, '--add-dir', UPLOAD_DIR];
       // For tests, e.g. OTTER_CLAUDE_ARGS="--permission-mode default" to see permission prompts.
       if (process.env.OTTER_CLAUDE_ARGS) args.push(...process.env.OTTER_CLAUDE_ARGS.split(/\s+/).filter(Boolean));
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
@@ -330,12 +332,41 @@ class Tab {
     return out;
   }
 
+  /** Switches the permission mode like Shift+Tab in the terminal, until the footer shows the wanted one. */
+  async setMode(target: PermissionMode) {
+    if (!this.proc || this.rec.kind !== 'claude') return false;
+    for (let i = 0; i < 6; i++) {
+      const now = parseMode(this.screen()) ?? this.mode;
+      if (now === target) {
+        this.mode = target;
+        changed();
+        return true;
+      }
+      this.proc.write('\x1b[Z'); // Shift+Tab
+      // Wait until Claude has redrawn its footer with the next mode, so one press counts once.
+      for (let w = 0; w < 20; w++) {
+        await new Promise((r) => setTimeout(r, 60));
+        const next = parseMode(this.screen());
+        if (next && next !== now) break;
+      }
+    }
+    this.mode = parseMode(this.screen()) ?? this.mode;
+    changed();
+    return this.mode === target;
+  }
+
   /** Looks at the screen shortly after output settles: is a dialog up, or did it just go away? */
   private scheduleDetect() {
     if (this.rec.kind !== 'claude' || this.detectTimer) return;
     this.detectTimer = setTimeout(() => {
       this.detectTimer = null;
-      const p = parsePrompt(this.screen());
+      const screen = this.screen();
+      const mode = parseMode(screen);
+      if (mode && mode !== this.mode) {
+        this.mode = mode;
+        changed();
+      }
+      const p = parsePrompt(screen);
       if (JSON.stringify(p) === JSON.stringify(this.prompt)) return;
       this.prompt = p;
       if (p) {

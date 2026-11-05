@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Brain, ChevronRight, ImageIcon, Square, SquareTerminal } from 'lucide-react';
+import { ArrowUp, Brain, ChevronRight, FileText, ImageIcon, Plus, Square, SquareTerminal, X } from 'lucide-react';
 import type { ChatItem, ChatServerMsg, TabView } from '../../../shared/types';
 import { api, chatUrl, usePersisted } from '../api';
 import { renderMarkdown } from './markdown';
 import { EditCard, isEdit, StepRow, TodoCard } from './ToolCard';
 import { PromptCard } from './PromptCard';
+import { formatSize, ModeMenu, type Attachment } from './Composer';
 
 type Tool = Extract<ChatItem, { k: 'tool' }>;
 type Block =
@@ -58,6 +59,35 @@ function Thinking({ text }: { text: string }) {
       </button>
       {open && <div className="md quiet" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />}
     </div>
+  );
+}
+
+/** Your message; attachments Otterdeck listed under "Anhänge:" show as small cards. */
+function UserText({ text }: { text: string }) {
+  const at = text.lastIndexOf('\n\nAnhänge:\n');
+  if (at < 0) return <>{text}</>;
+  const words = text.slice(0, at);
+  const paths = text
+    .slice(at + 11)
+    .split('\n')
+    .map((l) => l.replace(/^- /, '').trim())
+    .filter(Boolean);
+  return (
+    <>
+      {words}
+      <span className="bubble-files">
+        {paths.map((p) => {
+          const name = p.split(/[\\/]/).pop()!.replace(/^[0-9a-f]{12}-/, '');
+          const image = /\.(png|jpe?g|gif|webp)$/i.test(p);
+          return (
+            <span key={p} className="bubble-file" title={p}>
+              {image ? <img src={api.uploadUrl(p)} alt="" /> : <FileText size={14} />}
+              <span>{name}</span>
+            </span>
+          );
+        })}
+      </span>
+    </>
   );
 }
 
@@ -166,22 +196,66 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   const running = tab.status === 'working';
   const alive = !['exited', 'dormant'].includes(tab.status);
 
+  // ---------- attachments ----------
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [dropping, setDropping] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
+  const uploading = files.some((f) => f.uploading);
+
+  const addFiles = (list: FileList | File[]) => {
+    for (const file of Array.from(list)) {
+      const key = `${file.name}-${file.size}-${Math.random()}`;
+      const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+      setFiles((fs) => [...fs, { key, name: file.name || 'Bild.png', size: file.size, preview, path: null, uploading: true, error: null }]);
+      api
+        .upload(file)
+        .then((r) => setFiles((fs) => fs.map((f) => (f.key === key ? { ...f, path: r.path, uploading: false } : f))))
+        .catch((e) => setFiles((fs) => fs.map((f) => (f.key === key ? { ...f, uploading: false, error: (e as Error).message } : f))));
+    }
+    input.current?.focus();
+  };
+
   const send = async () => {
-    const text = draft.trim();
-    if (!text) return;
+    const ready = files.filter((f) => f.path);
+    const words = draft.trim();
+    if ((!words && !ready.length) || uploading) return;
+    // Claude reads the attached files itself; the paths go into the message as plain text.
+    const text = ready.length
+      ? `${words || 'Sieh dir bitte die Anhänge an.'}\n\nAnhänge:\n${ready.map((f) => `- ${f.path}`).join('\n')}`
+      : words;
     setPending((p) => [...p, text]);
     setDraft('');
+    setFiles([]);
     stick.current = true;
     try {
       await api.typeToTab(tab.id, text);
     } catch {
       setPending((p) => p.filter((x) => x !== text));
-      setDraft(text);
+      setDraft(words);
+      setFiles(ready);
     }
   };
 
   return (
-    <div className="chat">
+    <div
+      className={`chat${dropping ? ' dropping' : ''}`}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files') || !alive) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        if (!dropping) setDropping(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropping(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.files.length) return;
+        e.preventDefault();
+        setDropping(false);
+        addFiles(e.dataTransfer.files);
+      }}
+    >
+      {dropping && <div className="drop-zone">Zum Anhängen loslassen</div>}
       <div
         className="chat-scroll"
         ref={scroller}
@@ -203,7 +277,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               {b.k === 'item' && b.item.k === 'user' && (
                 <div className="msg-user">
                   <div className="bubble">
-                    {b.item.text}
+                    <UserText text={b.item.text} />
                     {b.item.images > 0 && (
                       <span className="bubble-img">
                         <ImageIcon size={13} /> {b.item.images === 1 ? 'Bild' : `${b.item.images} Bilder`}
@@ -219,7 +293,9 @@ export function ChatView({ tab, onShowTerminal }: Props) {
           ))}
           {pending.map((p, i) => (
             <div className="msg-user pending" key={`p${i}`}>
-              <div className="bubble">{p}</div>
+              <div className="bubble">
+                <UserText text={p} />
+              </div>
             </div>
           ))}
           {running && (
@@ -265,6 +341,36 @@ export function ChatView({ tab, onShowTerminal }: Props) {
           </div>
         )}
         <div className="composer">
+          {files.length > 0 && (
+            <div className="attachments">
+              {files.map((f) => (
+                <div key={f.key} className={`attachment${f.error ? ' error' : ''}${f.uploading ? ' uploading' : ''}`} title={f.error ?? f.path ?? f.name}>
+                  {f.preview ? <img src={f.preview} alt="" /> : <FileText size={18} />}
+                  <span className="att-text">
+                    <span className="att-name">{f.name}</span>
+                    <span className="att-meta">{f.error ? 'Fehler' : f.uploading ? 'Lädt …' : formatSize(f.size)}</span>
+                  </span>
+                  <button className="att-remove" onClick={() => setFiles((fs) => fs.filter((x) => x.key !== f.key))} aria-label="Entfernen">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="composer-row">
+          <button className="round-btn plain" onClick={() => picker.current?.click()} disabled={!alive} title="Dateien oder Bilder hinzufügen">
+            <Plus size={18} />
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files?.length) addFiles(e.target.files);
+              e.target.value = '';
+            }}
+          />
           <textarea
             ref={input}
             value={draft}
@@ -272,6 +378,14 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             placeholder={alive ? 'Nachricht an Claude' : 'Claude läuft gerade nicht'}
             disabled={!alive}
             onChange={(e) => setDraft(e.target.value)}
+            onPaste={(e) => {
+              // A screenshot or copied file in the clipboard becomes an attachment.
+              const pasted = Array.from(e.clipboardData.files);
+              if (pasted.length) {
+                e.preventDefault();
+                addFiles(pasted);
+              }
+            }}
             onKeyDown={(e) => {
               if (slashList.length) {
                 if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -296,15 +410,22 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               }
             }}
           />
+          <ModeMenu tab={tab} />
           {running ? (
             <button className="round-btn" onClick={() => api.keyToTab(tab.id, 'stop')} title="Anhalten (Esc)">
               <Square size={14} fill="currentColor" />
             </button>
           ) : (
-            <button className="round-btn primary" onClick={send} disabled={!draft.trim() || !alive} title="Senden (Enter)">
+            <button
+              className="round-btn primary"
+              onClick={send}
+              disabled={(!draft.trim() && !files.some((f) => f.path)) || uploading || !alive}
+              title="Senden (Enter)"
+            >
               <ArrowUp size={17} strokeWidth={2.6} />
             </button>
           )}
+          </div>
         </div>
       </div>
     </div>

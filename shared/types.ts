@@ -13,6 +13,9 @@ export type TabKind = 'claude' | 'shell';
  */
 export type TabStatus = 'dormant' | 'starting' | 'ready' | 'working' | 'waiting' | 'done' | 'exited';
 
+/** default = asks before acting · acceptEdits = edits allowed · plan = plans only · auto = decides itself · bypass = never asks */
+export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto' | 'bypass';
+
 /** A dialog Claude shows in the terminal right now (read from the screen). */
 export interface PromptView {
   kind: 'permission' | 'question';
@@ -40,6 +43,8 @@ export interface TabView {
   question: string | null;
   /** The dialog on screen while waiting, with its options. */
   prompt: PromptView | null;
+  /** Claude Code's permission mode as its footer shows it (null = not seen yet). */
+  mode: PermissionMode | null;
   /** The prompt that started the current or last turn. */
   lastPrompt: string | null;
   /** Claude's last reply, shortened. */
