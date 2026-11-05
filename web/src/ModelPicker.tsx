@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Cpu, Orbit, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, Cpu, Orbit, Settings, Sparkles } from 'lucide-react';
 import type { ModelChoice, Provider, TabView } from '../../shared/types';
 import { api, usePersisted } from './api';
-import { ModeList, modeOf } from './chat/Composer';
+import { MODES, modeOf } from './chat/Composer';
 
 // ---------- the model list (loaded once) ----------
 
@@ -238,38 +238,112 @@ export function ModelMenu({ tab }: { tab: TabView }) {
   );
 }
 
+/** Short words for the mode switch in the phone sheet. */
+const MODE_SHORT: Record<string, string> = { default: 'Fragt', acceptEdits: 'Bearbeiten', plan: 'Plan', auto: 'Auto' };
+
 /**
- * Phone: one small round button (the current mode's icon) instead of two chips. It opens a sheet
- * as wide as the chat box with both: model and mode.
+ * Phone: one small round settings button instead of two chips. It opens a compact sheet as wide as
+ * the chat box: models as chips (Antigravity with its effort below), the mode as one 4-way switch.
+ * A model change applies with "Wechseln" (Antigravity restarts for it); the mode switches at once.
  */
 export function ComposerSheet({ tab }: { tab: TabView }) {
   const models = useModels();
   const [open, setOpen] = useState(false);
-  const Icon = modeOf(tab)?.icon ?? Cpu;
+  const provider: Provider = tab.kind === 'agy' ? 'agy' : 'claude';
+  const busy = tab.status === 'working' || tab.status === 'waiting';
+  const [pick, setPick] = useState<string | null>(tab.modelId);
+  const [error, setError] = useState<string | null>(null);
+  const [modeBusy, setModeBusy] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setPick(tab.modelId);
+      setError(null);
+    }
+  }, [open, tab.modelId]);
+
+  const list = models?.[provider] ?? [];
+  const rows = provider === 'agy' ? grouped(list) : list.map((m) => ({ base: m.label, variants: [{ effort: '', m }] }));
+  const pickedRow = rows.find((r) => r.variants.some((v) => v.m.id === pick)) ?? null;
+
+  const chooseBase = (row: (typeof rows)[number]) => {
+    // A model with efforts starts at "medium" (or what it has).
+    const v = row.variants.find((x) => /medium/i.test(x.effort)) ?? row.variants[0];
+    setPick(v.m.id);
+  };
+  const applyModel = async () => {
+    if (!pick || pick === tab.modelId || busy) return;
+    setError(null);
+    try {
+      await api.setModel(tab.id, pick);
+      setOpen(false);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  const setMode = async (id: string) => {
+    setModeBusy(true);
+    setError(null);
+    try {
+      await api.setMode(tab.id, id as any);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setModeBusy(false);
+    }
+  };
+  const mode = modeOf(tab);
+
   return (
     <>
-      <button
-        className={`round-btn plain sheet-btn${tab.mode && tab.mode !== 'default' ? ' on' : ''}`}
-        onClick={() => setOpen(!open)}
-        aria-label="Modell und Modus"
-        title={`${modelLabel(tab, models)} · ${modeOf(tab)?.label ?? 'Modus'}`}
-      >
-        <Icon size={18} />
+      <button className={`round-btn plain sheet-btn${open ? ' on' : ''}`} onClick={() => setOpen(!open)} aria-label="Modell und Modus" title={`${modelLabel(tab, models)} · ${mode?.label ?? 'Modus'}`}>
+        <Settings size={18} />
       </button>
       {open && (
         <>
           <div className="sheet-scrim" onClick={() => setOpen(false)} />
-          <div className="composer-sheet" role="dialog" aria-label="Modell und Modus">
+          <div className="composer-sheet compact" role="dialog" aria-label="Modell und Modus">
             <div className="sheet-head">
               <span>Modell</span>
               <span className="sheet-now">{modelLabel(tab, models)}</span>
             </div>
-            <ModelSwitchList tab={tab} onDone={() => setOpen(false)} />
+            <div className="chip-row">
+              <button className={`chip${!pick ? ' sel' : ''}`} onClick={() => setPick(null)}>
+                Standard
+              </button>
+              {rows.map((r) => (
+                <button key={r.base} className={`chip${pickedRow?.base === r.base ? ' sel' : ''}`} onClick={() => chooseBase(r)}>
+                  {r.base.replace(/^Claudes+/, '')}
+                </button>
+              ))}
+            </div>
+            {pickedRow && pickedRow.variants.length > 1 && (
+              <div className="seg">
+                {pickedRow.variants.map((v) => (
+                  <button key={v.m.id} className={v.m.id === pick ? 'on' : ''} onClick={() => setPick(v.m.id)}>
+                    {EFFORT[v.effort.toLowerCase()] ?? v.effort}
+                  </button>
+                ))}
+              </div>
+            )}
+            {pick !== tab.modelId && (
+              <button className="copy-btn primary sheet-apply" disabled={busy || !pick} onClick={applyModel}>
+                {busy ? 'Arbeitet gerade, gleich' : !pick ? 'Standard gilt beim nächsten Chat' : provider === 'agy' ? 'Wechseln (startet kurz neu)' : 'Wechseln'}
+              </button>
+            )}
+
             <div className="sheet-head">
               <span>Modus</span>
-              <span className="sheet-now">{modeOf(tab)?.label ?? ''}</span>
             </div>
-            <ModeList tab={tab} onDone={() => setOpen(false)} />
+            <div className="seg modes">
+              {MODES.map((m) => (
+                <button key={m.id} className={m.id === tab.mode ? 'on' : ''} disabled={modeBusy} onClick={() => setMode(m.id)}>
+                  <m.icon size={15} />
+                  <span>{MODE_SHORT[m.id] ?? m.label}</span>
+                </button>
+              ))}
+            </div>
+            {mode?.hint && <div className="sheet-hint">{mode.hint}</div>}
+            {error && <div className="mode-error">{error}</div>}
           </div>
         </>
       )}

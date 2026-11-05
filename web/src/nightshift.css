@@ -1534,3 +1534,76 @@ button.model-row:hover,
 .composer-wrap {
   --sheet-gutter: 20px;
 }
+
+/* compact phone sheet: chips + switches instead of long lists */
+.composer-sheet.compact {
+  padding: 4px 12px 14px;
+}
+.composer-sheet.compact .sheet-head {
+  padding: 12px 2px 8px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 99px;
+  background: #222226;
+  color: var(--muted);
+  font: 500 13.5px var(--font);
+  transition: background 0.15s, color 0.15s, transform 0.1s var(--spring);
+}
+.chip:active {
+  transform: scale(0.96);
+}
+.chip.sel {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #111113;
+}
+.seg button {
+  height: 34px;
+  border-radius: 8px;
+  color: var(--muted);
+  font: 500 13px var(--font);
+  transition: background 0.15s, color 0.15s;
+}
+.seg button.on {
+  background: #2c2c31;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.seg.modes {
+  margin-top: 0;
+}
+.seg.modes button {
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.sheet-hint {
+  padding: 8px 2px 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+.sheet-apply {
+  width: 100%;
+  height: 36px;
+  margin-top: 10px;
+}

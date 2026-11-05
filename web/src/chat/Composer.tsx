@@ -21,7 +21,7 @@ export function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 }
 
-const MODES: { id: PermissionMode; label: string; hint: string; icon: typeof Hand }[] = [
+export const MODES: { id: PermissionMode; label: string; hint: string; icon: typeof Hand }[] = [
   { id: 'default', label: 'Fragt nach', hint: 'Vor Änderungen und Befehlen um Erlaubnis bitten', icon: Hand },
   { id: 'acceptEdits', label: 'Änderungen automatisch', hint: 'Dateien ändern ohne zu fragen, Befehle mit Nachfrage', icon: Pencil },
   { id: 'plan', label: 'Plan', hint: 'Nur planen und lesen, nichts ändern', icon: ClipboardList },
