@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Cpu, Orbit, Settings, Sparkles } from 'lucide-react';
-import type { ModelChoice, Provider, TabView } from '../../shared/types';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Cpu, Orbit, Plus, Settings, Sparkles } from 'lucide-react';
+import type { AccountView, ModelChoice, Provider, TabView } from '../../shared/types';
 import { api, usePersisted } from './api';
 import { MODES, modeOf } from './chat/Composer';
 
@@ -44,6 +44,8 @@ export interface NewChatChoice {
   provider: Provider;
   /** null = the CLI's own default model */
   model: string | null;
+  /** Claude account dir (null = default account). */
+  account?: string | null;
 }
 
 export function choiceLabel(c: NewChatChoice, models: Record<Provider, ModelChoice[]> | null) {
@@ -126,58 +128,115 @@ function usePopover() {
   return { open, setOpen, ref };
 }
 
+/** One choice in the new-chat popup: Claude per account, Antigravity. */
+interface ProviderOption {
+  provider: Provider;
+  account: string | null;
+  label: string;
+  sub: string;
+}
+
 /**
- * "Neuer Chat" split button: the main part starts a chat with your last choice, the arrow opens the
- * provider/model list (picking one starts right away and becomes the new default).
+ * New chat: on the left your last choice as text (one click starts it), on the right a "+" that opens
+ * a popup: first the provider (Claude per account, Antigravity), then the model. Picking a model
+ * starts the chat and becomes the new last choice.
  */
 export function NewChatButton({
   agy,
+  accounts,
   big,
   disabled,
   onStart,
-  onContextMenu,
-  title,
 }: {
   agy: boolean;
+  accounts: AccountView[];
   big?: boolean;
   disabled?: boolean;
   onStart: (c: NewChatChoice) => void;
-  onContextMenu?: (e: React.MouseEvent) => void;
-  title?: string;
 }) {
   const models = useModels();
-  const [choice, setChoice] = usePersisted<NewChatChoice>('otter.newChat', { provider: 'claude', model: null });
-  const c: NewChatChoice = choice.provider === 'agy' && !agy ? { provider: 'claude', model: null } : choice;
-  const { open, setOpen, ref } = usePopover();
-  const providers: Provider[] = agy ? ['claude', 'agy'] : ['claude'];
+  const [choice, setChoice] = usePersisted<NewChatChoice>('otter.newChat', { provider: 'claude', model: null, account: null });
+  const c: NewChatChoice = choice.provider === 'agy' && !agy ? { provider: 'claude', model: null, account: null } : choice;
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<ProviderOption | null>(null);
+
+  const options: ProviderOption[] = [
+    ...(accounts.length ? accounts : [{ dir: '', label: 'Standard', email: null, isDefault: true }]).map((a) => ({
+      provider: 'claude' as const,
+      // The account is always named, so "Claude · Standard" doesn't fall back to the project's account.
+      account: a.dir || null,
+      label: accounts.length > 1 ? `Claude · ${a.label}` : 'Claude',
+      sub: a.email ?? 'Claude Code',
+    })),
+    ...(agy ? [{ provider: 'agy' as const, account: null, label: 'Antigravity', sub: 'Google · Gemini, Claude, GPT-OSS' }] : []),
+  ];
+  const optionOf = (x: NewChatChoice) => options.find((o) => o.provider === x.provider && (o.account ?? null) === (x.account ?? null)) ?? options[0];
+  const current = optionOf(c);
+
+  useEffect(() => {
+    if (!open) return;
+    setStep(null);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [open]);
+
+  const start = (next: NewChatChoice) => {
+    setChoice(next);
+    setOpen(false);
+    onStart(next);
+  };
+  const text = [current.label, c.model ? choiceLabel(c, models) : null].filter(Boolean).join(' · ');
+
   return (
-    <div className={`newchat${big ? ' big' : ''}`} ref={ref}>
-      <button
-        className={`btn ${big ? 'big' : 'small'} primary newchat-main`}
-        disabled={disabled}
-        onClick={() => onStart(c)}
-        onContextMenu={onContextMenu}
-        title={title ?? `Neuer Chat: ${PROVIDER_LABEL[c.provider]}, ${choiceLabel(c, models)}`}
-      >
+    <div className={`newchat${big ? ' big' : ''}`}>
+      <button className={`btn ${big ? 'big' : 'small'} primary newchat-main`} disabled={disabled} onClick={() => onStart(c)} title={`Neuer Chat: ${text}`}>
         <ProviderIcon provider={c.provider} size={big ? 18 : 15} />
-        <span className="newchat-label">{big ? `${PROVIDER_LABEL[c.provider]} starten` : PROVIDER_LABEL[c.provider]}</span>
-        {c.model && <span className="newchat-model">{choiceLabel(c, models)}</span>}
+        <span className="newchat-label">{text}</span>
       </button>
-      <button className={`btn ${big ? 'big' : 'small'} primary newchat-more`} disabled={disabled} onClick={() => setOpen(!open)} aria-label="Anbieter und Modell wählen" title="Anbieter und Modell wählen">
-        <ChevronDown size={big ? 16 : 14} />
+      <button className={`btn ${big ? 'big' : 'small'} primary newchat-more`} disabled={disabled} onClick={() => setOpen(true)} aria-label="Neuer Chat mit …" title="Neuer Chat mit anderem Anbieter oder Modell">
+        <Plus size={big ? 18 : 15} />
       </button>
       {open && (
-        <div className="model-menu" role="menu">
-          <ModelList
-            providers={providers}
-            models={models}
-            current={c}
-            onPick={(next) => {
-              setChoice(next);
-              setOpen(false);
-              onStart(next);
-            }}
-          />
+        <div className="dialog-scrim" onClick={() => setOpen(false)}>
+          <div className="dialog newchat-dialog" role="dialog" aria-label="Neuer Chat" onClick={(e) => e.stopPropagation()}>
+            {!step ? (
+              <>
+                <div className="dialog-title">Neuer Chat mit …</div>
+                <div className="provider-list">
+                  {options.map((o) => (
+                    <button key={o.provider + (o.account ?? '')} className={`provider-card${o === current ? ' sel' : ''}`} onClick={() => setStep(o)}>
+                      <span className="provider-icon">
+                        <ProviderIcon provider={o.provider} size={18} />
+                      </span>
+                      <span className="provider-text">
+                        <span className="provider-name">{o.label}</span>
+                        <span className="provider-sub">{o.sub}</span>
+                      </span>
+                      <ChevronRight size={16} className="provider-go" />
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="dialog-title">
+                  <button className="icon-btn dialog-back" onClick={() => setStep(null)} aria-label="Zurück">
+                    <ChevronLeft size={18} />
+                  </button>
+                  {step.label}
+                </div>
+                <div className="newchat-models">
+                  <ModelList
+                    providers={[step.provider]}
+                    models={models}
+                    current={c.provider === step.provider && (c.account ?? null) === step.account ? c : null}
+                    onPick={(next) => start({ ...next, account: step.account })}
+                  />
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

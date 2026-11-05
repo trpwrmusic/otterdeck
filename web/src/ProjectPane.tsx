@@ -183,15 +183,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
           <button className="btn small" onClick={() => open('shell')} title="Shell öffnen (Strg+Umschalt+^)">
             <SquareTerminal size={15} /> Shell
           </button>
-          <NewChatButton
-            agy={!!agy}
-            onStart={(c) => open(c.provider, undefined, undefined, c.model)}
-            onContextMenu={(e) => {
-              if (!multi) return;
-              e.preventDefault();
-              setAccountMenu({ x: e.clientX, y: e.clientY });
-            }}
-          />
+          <NewChatButton agy={!!agy} accounts={accounts} onStart={(c) => open(c.provider, undefined, c.account ?? undefined, c.model)} />
           {accountMenu && (
             <ContextMenu
               x={accountMenu.x}
@@ -372,7 +364,7 @@ function StartPage({
         <h2>{project.displayName}</h2>
         <div className="start-path">{project.path}</div>
         <div className="start-actions">
-          <NewChatButton big agy={!!agy} disabled={!project.exists} onStart={(c) => onOpen(c.provider, undefined, undefined, c.model)} />
+          <NewChatButton big agy={!!agy} accounts={accounts} disabled={!project.exists} onStart={(c) => onOpen(c.provider, undefined, c.account ?? undefined, c.model)} />
           <button className="btn big" onClick={() => onOpen('shell')} disabled={!project.exists}>
             <SquareTerminal size={18} /> Shell
           </button>
