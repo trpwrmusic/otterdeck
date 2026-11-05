@@ -127,6 +127,16 @@ export function ChatView({ tab, onShowTerminal }: Props) {
 
   useEffect(() => input.current?.focus(), [tab.id]);
 
+  // The box grows with what you type (wrapped lines too) and only scrolls past 240px.
+  useLayoutEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const h = Math.min(el.scrollHeight, 240);
+    el.style.height = `${h}px`;
+    el.classList.toggle('scroll', el.scrollHeight > 240);
+  }, [draft]);
+
   const blocks = useMemo(() => toBlocks(items), [items]);
   const running = tab.status === 'working';
   const alive = !['exited', 'dormant'].includes(tab.status);
@@ -227,7 +237,6 @@ export function ChatView({ tab, onShowTerminal }: Props) {
                 send();
               }
             }}
-            style={{ height: Math.min(220, 24 + draft.split('\n').length * 21) }}
           />
           {running ? (
             <button className="round-btn" onClick={() => api.keyToTab(tab.id, 'stop')} title="Anhalten (Esc)">

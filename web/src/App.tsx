@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Menu } from 'lucide-react';
 import type { AppState, Chat, TabView } from '../../shared/types';
 import { api, useAppState, usePersisted } from './api';
 import { AddProject } from './AddProject';
@@ -33,10 +34,13 @@ export function App() {
   const activeTab =
     stored === null ? null : stored?.startsWith('view:') ? stored : tabs.find((t) => t.id === stored)?.id ?? tabs[0]?.id ?? null;
 
+  /** Narrow windows: the sidebar is a sheet that opens over the work. */
+  const [navOpen, setNavOpen] = useState(false);
   const selectProject = useCallback(
     (id: string) => {
       setView('project');
       setSelected(id);
+      setNavOpen(false);
     },
     [setSelected],
   );
@@ -220,7 +224,11 @@ export function App() {
     );
 
   return (
-    <div className="app">
+    <div className={`app${navOpen ? ' nav-open' : ''}`}>
+      <button className="icon-btn menu-btn nav-toggle" onClick={() => setNavOpen(!navOpen)} aria-label="Projekte">
+        <Menu size={18} />
+      </button>
+      {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
       <Sidebar
         state={state}
         selectedId={project?.id ?? null}
@@ -232,6 +240,14 @@ export function App() {
         onDropChat={dropChat}
         notifyPermission={permission}
         onEnableNotifications={() => Notification.requestPermission().then(setPermission)}
+        onJump={(status) => {
+          // The oldest one first, and a different one than you're looking at when there are several.
+          const list = state.tabs
+            .filter((t) => t.status === status && (status !== 'done' || t.unseen))
+            .sort((a, b) => a.changedAt - b.changedAt);
+          const next = list.find((t) => t.id !== activeTab) ?? list[0];
+          if (next) openTab(next.id);
+        }}
       />
       {view === 'chats' ? (
         <ChatsPage

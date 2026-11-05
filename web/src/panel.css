@@ -1,37 +1,6 @@
 /* Changes panel, diff and file views (phase 2). */
 
-:root {
-  --plus: #3f8a4a;
-  --minus: #b9473c;
-  --add-bg: rgba(70, 150, 85, 0.11);
-  --del-bg: rgba(200, 75, 60, 0.1);
-  --add-sign: rgba(70, 150, 85, 0.7);
-  --del-sign: rgba(200, 75, 60, 0.7);
-  --code-font: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --plus: #8cc792;
-    --minus: #eb8f84;
-    --add-bg: rgba(110, 190, 120, 0.1);
-    --del-bg: rgba(235, 110, 95, 0.1);
-    --add-sign: rgba(140, 200, 145, 0.75);
-    --del-sign: rgba(235, 140, 130, 0.75);
-  }
-}
 
-.pane-main {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  gap: 14px;
-}
-.pane-col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
 .tab.view .tab-title {
   font-family: var(--code-font);
   font-size: 12.5px;
@@ -54,6 +23,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 12px 10px 0 12px;
+  box-shadow: inset 1px 0 0 var(--rule);
 }
 .panel-switch {
   align-self: stretch;
@@ -75,9 +46,8 @@
   flex: 1;
 }
 .branch-card {
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  background: var(--raised);
+  border-radius: var(--radius-card);
   padding: 12px 12px 10px 14px;
 }
 .branch-line {
@@ -169,8 +139,7 @@
   background: var(--hover);
 }
 .change.active {
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--active);
 }
 .change.deleted .change-name {
   text-decoration: line-through;
@@ -182,7 +151,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
 }
 .change-nums {
   display: flex;
@@ -237,8 +205,7 @@
   background: var(--hover);
 }
 .tree-row.active {
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--active);
 }
 .tree-row.quiet {
   color: var(--text-3);
@@ -262,9 +229,6 @@
 .doc-card {
   flex: 1;
   min-width: 0;
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
   overflow: hidden;
   display: flex;
 }
@@ -304,14 +268,15 @@
   max-width: calc(100% - 36px);
   margin: 12px 18px;
   border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-  background: repeating-conic-gradient(var(--hover) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+  border: 1px solid var(--border);
+  /* checkerboard that shows transparency in image previews, not decoration — taste-skill-ignore */
+  background: repeating-conic-gradient(var(--hover) 0 25%, transparent 0 50%) 0 0 / 16px 16px; /* taste-skill-ignore */
 }
 
 .code {
   border-collapse: collapse;
   width: 100%;
-  font: 13px/1.55 var(--code-font);
+  font: 12.5px/1.6 var(--code-font);
   user-select: text;
 }
 .code td {

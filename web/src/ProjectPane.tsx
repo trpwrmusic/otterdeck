@@ -183,67 +183,68 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
         </div>
       </header>
 
-      <div className="pane-main">
-        <div className="pane-col">
-          {hasTabs && (
-            <nav className="tabs">
-              {tabs.map((t) => (
-                <div
-                  key={t.id}
-                  className={`tab${t.id === current?.id ? ' active' : ''}`}
-                  onClick={() => onActivate(t.id)}
-                  onAuxClick={(e) => e.button === 1 && close(t)}
-                  title={t.lastPrompt ?? t.title}
-                >
-                  <span className="tab-icon">
-                    {tabAttention(t) ? (
-                      <StatusMark attention={tabAttention(t)} size={12} />
-                    ) : t.kind === 'claude' ? (
-                      <Sparkles size={13} />
-                    ) : (
-                      <SquareTerminal size={13} />
-                    )}
-                  </span>
-                  <span className="tab-title">{t.title}</span>
-                  <button
-                    className="tab-close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      close(t);
-                    }}
-                    title="Schließen"
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              ))}
-              {views.map((v) => (
-                <div
-                  key={v.id}
-                  className={`tab view${v.id === currentView?.id ? ' active' : ''}`}
-                  onClick={() => onActivate(v.id)}
-                  onAuxClick={(e) => e.button === 1 && closeView(v)}
-                  title={v.path}
-                >
-                  <span className="tab-icon">{v.kind === 'diff' ? <FileDiffIcon size={13} /> : <FileCode2 size={13} />}</span>
-                  <span className="tab-title">{fileName(v.path)}</span>
-                  <button
-                    className="tab-close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeView(v);
-                    }}
-                    title="Schließen"
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              ))}
-              <button className={`tab add${activeTab === null ? ' active' : ''}`} onClick={() => onActivate(null)} title="Neuer Tab">
-                <Plus size={14} />
+      {hasTabs && (
+        <nav className="tabs">
+          {tabs.map((t) => (
+            <div
+              key={t.id}
+              className={`tab${t.id === current?.id ? ' active' : ''}`}
+              onClick={() => onActivate(t.id)}
+              onAuxClick={(e) => e.button === 1 && close(t)}
+              title={t.lastPrompt ?? t.title}
+            >
+              <span className="tab-icon">
+                {tabAttention(t) ? (
+                  <StatusMark attention={tabAttention(t)} size={12} />
+                ) : t.kind === 'claude' ? (
+                  <Sparkles size={13} />
+                ) : (
+                  <SquareTerminal size={13} />
+                )}
+              </span>
+              <span className="tab-title">{t.title}</span>
+              <button
+                className="tab-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  close(t);
+                }}
+                title="Schließen"
+              >
+                <X size={13} />
               </button>
-            </nav>
-          )}
+            </div>
+          ))}
+          {views.map((v) => (
+            <div
+              key={v.id}
+              className={`tab view${v.id === currentView?.id ? ' active' : ''}`}
+              onClick={() => onActivate(v.id)}
+              onAuxClick={(e) => e.button === 1 && closeView(v)}
+              title={v.path}
+            >
+              <span className="tab-icon">{v.kind === 'diff' ? <FileDiffIcon size={13} /> : <FileCode2 size={13} />}</span>
+              <span className="tab-title">{fileName(v.path)}</span>
+              <button
+                className="tab-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeView(v);
+                }}
+                title="Schließen"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+          <button className={`tab add${activeTab === null ? ' active' : ''}`} onClick={() => onActivate(null)} title="Neuer Tab">
+            <Plus size={14} />
+          </button>
+        </nav>
+      )}
+
+      <div className="sheet">
+        <div className="pane-col">
 
           <div className="pane-body">
             {currentView ? (
@@ -264,7 +265,7 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
                 )}
               </div>
             ) : current && currentMode === 'chat' ? (
-              <div className="doc-card chat-card" key={`chat-${current.id}`}>
+              <div className="doc-card chat-pane" key={`chat-${current.id}`}>
                 <ChatView tab={current} onShowTerminal={() => setViewOf(current.id, 'terminal')} />
               </div>
             ) : current ? (

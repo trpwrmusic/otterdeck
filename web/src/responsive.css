@@ -1,0 +1,62 @@
+/* Loaded last, so these win over the component files. */
+
+/* ---------- narrow windows: the sidebar folds away behind a menu button ---------- */
+
+.menu-btn {
+  display: none;
+}
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(300px, 86vw);
+    background: var(--ground);
+    z-index: 40;
+    transform: translateX(-105%);
+    transition: transform 0.25s var(--ease);
+  }
+  .app.nav-open .sidebar {
+    transform: none;
+    box-shadow: var(--shadow-float);
+  }
+  .menu-btn {
+    display: grid;
+  }
+  .nav-toggle {
+    position: fixed;
+    top: 12px;
+    left: 8px;
+    z-index: 30;
+  }
+  .nav-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(5, 15, 18, 0.35);
+  }
+  .pane-head {
+    padding-left: 48px;
+  }
+  .pane.add,
+  .pane.chats {
+    margin-top: 56px;
+  }
+  .pane.add,
+  .pane.chats,
+  .sheet {
+    margin-left: var(--sheet-inset);
+  }
+  .side-panel {
+    display: none;
+  }
+  .view-switch,
+  .pane-actions .btn:not(.primary) {
+    display: none;
+  }
+  .pane-title .pill {
+    display: none;
+  }
+}

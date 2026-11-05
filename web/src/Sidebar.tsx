@@ -56,10 +56,15 @@ interface Props {
   onDropChat: (projectId: string, chat: Chat) => void;
   notifyPermission: NotificationPermission | 'unsupported';
   onEnableNotifications: () => void;
+  /** Opens the next session in that state. */
+  onJump: (status: 'waiting' | 'working' | 'done') => void;
 }
 
 export function Sidebar(props: Props) {
-  const { state, selectedId, onSelect, view, onAdd, onChats, dragging, onDropChat, notifyPermission, onEnableNotifications } = props;
+  const { state, selectedId, onSelect, view, onAdd, onChats, dragging, onDropChat, notifyPermission, onEnableNotifications, onJump } = props;
+  const waiting = state.tabs.filter((t) => t.status === 'waiting').length;
+  const working = state.tabs.filter((t) => t.status === 'working').length;
+  const done = state.tabs.filter((t) => t.status === 'done' && t.unseen).length;
   const adding = view !== 'project';
   const [showOlder, setShowOlder] = usePersisted('otter.showOlder', false);
   const [menu, setMenu] = useState<{ x: number; y: number; project: ProjectView } | null>(null);
@@ -183,9 +188,33 @@ export function Sidebar(props: Props) {
         </button>
       </div>
 
+      {state.tabs.some((t) => t.kind === 'claude') && !waiting && !working && !done && <div className="pulse-quiet">Keine Sitzung braucht dich</div>}
+      {(waiting > 0 || working > 0 || done > 0) && (
+        <div className="pulse" aria-label="Sitzungen">
+          <button
+            className={`pulse-chip${waiting ? ' waiting' : ''}`}
+            disabled={!waiting}
+            onClick={() => onJump('waiting')}
+            title="Zur nächsten wartenden Sitzung (Strg+Umschalt+J)"
+          >
+            {waiting > 0 && <span className="mark waiting" style={{ width: 8, height: 8 }} />}
+            <b>{waiting}</b> warten
+          </button>
+          <button className="pulse-chip" disabled={!working} onClick={() => onJump('working')} title="Zur nächsten arbeitenden Sitzung">
+            {working > 0 && <span className="mark working" style={{ width: 11, height: 11 }} />}
+            <b>{working}</b> aktiv
+          </button>
+          {done > 0 && (
+            <button className="pulse-chip" onClick={() => onJump('done')} title="Zur nächsten fertigen Sitzung">
+              <b>{done}</b> fertig
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="nav">
         <button className={`nav-item${view === 'chats' ? ' on' : ''}`} onClick={onChats}>
-          <MessagesSquare size={17} /> Chats
+          <MessagesSquare size={16} /> Chats
         </button>
       </div>
 
@@ -212,24 +241,20 @@ export function Sidebar(props: Props) {
 
       {state.update.available && (
         <button className="notify-card update" onClick={() => !state.update.pending && api.restart()} disabled={state.update.pending}>
-          <RefreshCw size={18} className={state.update.pending ? 'spinning' : ''} />
+          <RefreshCw size={16} className={state.update.pending ? 'spinning' : ''} />
           <span>
-            <strong>{state.update.pending ? 'Neustart vorgemerkt' : 'Neue Version bereit'}</strong>
-            <span>
-              {state.update.pending
-                ? 'Otterdeck startet neu, sobald Claude fertig ist.'
-                : 'Neu starten. Laufende Gespräche gehen danach weiter.'}
-            </span>
+            <strong>{state.update.pending ? 'Neustart vorgemerkt' : 'Neue Version'}</strong>
+            <span>{state.update.pending ? 'Sobald Claude fertig ist' : 'Neu starten, Gespräche bleiben'}</span>
           </span>
         </button>
       )}
 
       {notifyPermission === 'default' && state.projects.length > 0 && (
         <button className="notify-card" onClick={onEnableNotifications}>
-          <BellRing size={18} />
+          <BellRing size={16} />
           <span>
-            <strong>Benachrichtigungen einschalten</strong>
-            <span>Wenn Claude auf dich wartet oder fertig ist</span>
+            <strong>Benachrichtigungen</strong>
+            <span>Wenn Claude auf dich wartet</span>
           </span>
         </button>
       )}
