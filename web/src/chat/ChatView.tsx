@@ -102,7 +102,9 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   const [truncated, setTruncated] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = usePersisted(`otter.draft.${tab.id}`, '');
-  const shellMode = draft.trimStart().startsWith('!');
+  // Bash mode like in Claude Code: a "!" typed first turns the box purple and disappears into the
+  // prompt sign; Backspace on an empty box or Esc leaves it.
+  const [shellMode, setShellMode] = useState(false);
   /** Sent but not yet in the transcript; shown right away. */
   const [pending, setPending] = useState<string[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
@@ -117,7 +119,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   }, [tab.projectId, tab.id]);
 
   // "/" at the start, no space yet: suggest commands and skills.
-  const slashQuery = /^\/[^\s]*$/.test(draft) && !slashClosed ? draft.slice(1).toLowerCase() : null;
+  const slashQuery = !shellMode && /^\/[^\s]*$/.test(draft) && !slashClosed ? draft.slice(1).toLowerCase() : null;
   const slashList = useMemo(() => {
     if (slashQuery === null) return [];
     const starts = commands.filter((c) => c.name.toLowerCase().startsWith(slashQuery));
@@ -222,21 +224,24 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   const send = async () => {
     const ready = files.filter((f) => f.path);
     const words = draft.trim();
-    if ((!words && !ready.length) || uploading) return;
     // A "!" command runs in Claude Code's bash mode; attachments don't belong to it.
-    if (words.startsWith('!')) {
-      if (words.length < 2) return;
-      setPending((p) => [...p, words]);
+    if (shellMode) {
+      if (!words) return;
+      const cmd = '!' + words;
+      setPending((p) => [...p, cmd]);
       setDraft('');
+      setShellMode(false);
       stick.current = true;
       try {
-        await api.typeToTab(tab.id, words);
+        await api.typeToTab(tab.id, cmd);
       } catch {
-        setPending((p) => p.filter((x) => x !== words));
+        setPending((p) => p.filter((x) => x !== cmd));
         setDraft(words);
+        setShellMode(true);
       }
       return;
     }
+    if ((!words && !ready.length) || uploading) return;
     // Claude reads the attached files itself; the paths go into the message as plain text.
     const text = ready.length
       ? `${words || 'Sieh dir bitte die Anhänge an.'}\n\nAnhänge:\n${ready.map((f) => `- ${f.path}`).join('\n')}`
@@ -371,11 +376,6 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             ))}
           </div>
         )}
-        {shellMode && (
-          <div className="shell-hint">
-            <SquareTerminal size={13} /> Shell-Befehl · läuft direkt, Claude liest die Ausgabe mit
-          </div>
-        )}
         <div className={`composer${shellMode ? ' shell-mode' : ''}`}>
           {files.length > 0 && (
             <div className="attachments">
@@ -394,9 +394,15 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             </div>
           )}
           <div className="composer-row">
-          <button className="round-btn plain" onClick={() => picker.current?.click()} disabled={!alive} title="Dateien oder Bilder hinzufügen">
-            <Plus size={18} />
-          </button>
+          {shellMode ? (
+            <span className="shell-bang" title="Shell-Befehl: läuft direkt, Claude liest die Ausgabe mit">
+              !
+            </span>
+          ) : (
+            <button className="round-btn plain" onClick={() => picker.current?.click()} disabled={!alive} title="Dateien oder Bilder hinzufügen">
+              <Plus size={18} />
+            </button>
+          )}
           <input
             ref={picker}
             type="file"
@@ -411,9 +417,15 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             ref={input}
             value={draft}
             rows={1}
-            placeholder={alive ? 'Nachricht an Claude · ! für einen Shell-Befehl' : 'Claude läuft gerade nicht'}
+            placeholder={!alive ? 'Claude läuft gerade nicht' : shellMode ? 'Shell-Befehl · Claude liest die Ausgabe mit' : 'Nachricht an Claude · ! für einen Shell-Befehl'}
             disabled={!alive}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!shellMode && !draft && v.startsWith('!')) {
+                setShellMode(true);
+                setDraft(v.slice(1).replace(/^\s+/, ''));
+              } else setDraft(v);
+            }}
             onPaste={(e) => {
               // A screenshot or copied file in the clipboard becomes an attachment.
               const pasted = Array.from(e.clipboardData.files);
@@ -423,6 +435,11 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               }
             }}
             onKeyDown={(e) => {
+              if (shellMode && ((e.key === 'Backspace' && !draft) || e.key === 'Escape')) {
+                e.preventDefault();
+                setShellMode(false);
+                return;
+              }
               if (slashList.length) {
                 if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                   e.preventDefault();

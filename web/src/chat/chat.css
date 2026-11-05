@@ -507,7 +507,6 @@
 }
 .shell-run {
   font-size: 12px;
-  color: var(--working);
 }
 .shell-card.running .shell-cmd svg {
   animation: shell-pulse 1.2s ease-in-out infinite;
@@ -551,17 +550,52 @@
 .shell-more:hover {
   color: var(--text);
 }
-.shell-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 6px 4px;
-  font-size: 12px;
-  color: var(--working);
-}
-.composer.shell-mode {
-  border-color: rgba(138, 180, 255, 0.45);
+/* Bash mode: the whole input turns purple, like Claude Code's own prompt. */
+.composer.shell-mode,
+.composer.shell-mode:focus-within {
+  --shell: #c792ff;
+  border-color: rgba(199, 146, 255, 0.7);
+  background: rgba(199, 146, 255, 0.07);
+  box-shadow: 0 0 0 3px rgba(199, 146, 255, 0.12);
 }
 .composer.shell-mode textarea {
   font-family: var(--mono, ui-monospace, monospace);
+  color: var(--shell);
+  caret-color: var(--shell);
+}
+.composer.shell-mode textarea::placeholder {
+  color: rgba(199, 146, 255, 0.5);
+}
+.composer.shell-mode .round-btn.primary:not(:disabled) {
+  background: var(--shell);
+  color: #1a0f24;
+}
+.shell-bang {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 2px;
+  border-radius: 8px;
+  background: rgba(199, 146, 255, 0.16);
+  font: 700 15px var(--mono, ui-monospace, monospace);
+  color: #d4abff;
+  animation: shell-in 0.18s var(--spring, ease-out);
+}
+@keyframes shell-in {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+.shell-card .shell-cmd svg,
+.shell-card .shell-cmd code {
+  color: #c792ff;
+}
+.shell-run {
+  color: #c792ff;
+}
+.composer {
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
