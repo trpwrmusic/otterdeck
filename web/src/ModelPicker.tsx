@@ -40,7 +40,15 @@ function grouped(list: ModelChoice[]) {
 
 /** agy's "effort": how long the model thinks before it answers. */
 const EFFORT: Record<string, string> = { low: 'schnell', medium: 'normal', high: 'gründlich', max: 'maximal' };
-const EFFORT_NOTE = 'Wie lange das Modell nachdenkt: schnell, normal oder gründlich. Gründlich ist bei schweren Aufgaben besser, aber langsamer.';
+const EFFORTS = ['low', 'medium', 'high'];
+const effortOf = (label: string) => label.match(/\((Low|Medium|High|Max)\)$/i)?.[1].toLowerCase() ?? null;
+/** The variant of a model with this effort, or the nearest one it has. */
+function variantFor(row: { variants: { effort: string; m: ModelChoice }[] }, effort: string) {
+  const order = ['low', 'medium', 'high', 'max'];
+  const want = order.indexOf(effort);
+  return [...row.variants].sort((a, b) => Math.abs(order.indexOf(a.effort.toLowerCase()) - want) - Math.abs(order.indexOf(b.effort.toLowerCase()) - want))[0];
+}
+const EFFORT_NOTE = 'Gilt für alle Modelle. Gründlich ist bei schweren Aufgaben besser, aber langsamer.';
 
 export interface NewChatChoice {
   provider: Provider;
@@ -55,7 +63,7 @@ export function choiceLabel(c: NewChatChoice, models: Record<Provider, ModelChoi
   return m ? m.label.replace(/\s*\((Low|Medium|High|Max)\)$/i, (_, e) => ` · ${EFFORT[e.toLowerCase()] ?? e}`) : 'Standardmodell';
 }
 
-/** The list itself: providers as sections, models as rows (agy with effort chips). */
+/** The list itself: providers as sections, models as rows (Antigravity with one effort switch on top). */
 function ModelList({
   providers,
   models,
@@ -67,6 +75,9 @@ function ModelList({
   current: NewChatChoice | null;
   onPick: (c: NewChatChoice) => void;
 }) {
+  // One "think" level for all Antigravity models (remembered); starts at the current model's level.
+  const currentEffort = current?.provider === 'agy' ? effortOf(models?.agy.find((m) => m.id === current.model)?.label ?? '') : null;
+  const [effort, setEffort] = usePersisted<string>('otter.agyEffort', currentEffort ?? 'medium');
   if (!models) return <div className="model-empty">Lädt …</div>;
   return (
     <>
@@ -82,25 +93,31 @@ function ModelList({
             <span className="model-hint">{p === 'claude' ? 'Voreinstellung von Claude Code' : 'Voreinstellung von Antigravity'}</span>
             {current?.provider === p && !current.model && <Check size={14} className="model-check" />}
           </button>
-          {p === 'agy' && <div className="model-note effort-note">{EFFORT_NOTE}</div>}
+          {p === 'agy' && (
+            <div className="effort-bar">
+              <div className="effort-head">Nachdenken</div>
+              <div className="seg">
+                {EFFORTS.map((e) => (
+                  <button key={e} className={effort === e ? 'on' : ''} onClick={() => setEffort(e)}>
+                    {EFFORT[e]}
+                  </button>
+                ))}
+              </div>
+              <div className="model-note effort-note">{EFFORT_NOTE}</div>
+            </div>
+          )}
           {p === 'agy'
-            ? grouped(models.agy).map((row) => (
-                <div key={row.base} className="model-row group">
-                  <span className="model-name">{row.base}</span>
-                  <span className="model-efforts">
-                    {row.variants.map((v) => (
-                      <button
-                        key={v.m.id}
-                        className={`effort${current?.model === v.m.id ? ' sel' : ''}`}
-                        title={v.m.label}
-                        onClick={() => onPick({ provider: 'agy', model: v.m.id })}
-                      >
-                        {EFFORT[v.effort.toLowerCase()] ?? (v.effort || 'Start')}
-                      </button>
-                    ))}
-                  </span>
-                </div>
-              ))
+            ? grouped(models.agy).map((row) => {
+                const v = variantFor(row, effort);
+                const sel = row.variants.some((x) => x.m.id === current?.model);
+                return (
+                  <button key={row.base} className={`model-row${sel ? ' sel' : ''}`} onClick={() => onPick({ provider: 'agy', model: v.m.id })} title={v.m.label}>
+                    <span className="model-name">{row.base}</span>
+                    {v.effort && v.effort.toLowerCase() !== effort && <span className="model-hint">nur {EFFORT[v.effort.toLowerCase()] ?? v.effort}</span>}
+                    {sel && <Check size={14} className="model-check" />}
+                  </button>
+                );
+              })
             : models.claude.map((m) => (
                 <button key={m.id} className={`model-row${current?.model === m.id ? ' sel' : ''}`} onClick={() => onPick({ provider: 'claude', model: m.id })}>
                   <span className="model-name">{m.label}</span>
