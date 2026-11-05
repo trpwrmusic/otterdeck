@@ -140,7 +140,9 @@ class Tab {
     this.term.loadAddon(this.ser as any);
     this.term.onTitleChange((t) => {
       // Claude puts a spinner glyph in front of its title ("✳ Fix login").
-      const clean = t.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+      let clean = t.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+      // A shell sets its own executable path as the title ("C:\Windows\System32\…\powershell.exe"); that says nothing.
+      if (this.rec.kind === 'shell' && /^[a-z]:\\|\.exe$/i.test(clean)) clean = 'Shell';
       if (clean && clean !== this.title) {
         this.title = clean.slice(0, 60);
         changed();

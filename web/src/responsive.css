@@ -60,3 +60,11 @@
     display: none;
   }
 }
+
+/* Medium windows: keep the title readable, the less frequent controls move into the palette (Ctrl+K). */
+@media (max-width: 900px) {
+  .view-switch,
+  .pane-actions .btn:not(.primary) {
+    display: none;
+  }
+}

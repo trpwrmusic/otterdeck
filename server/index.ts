@@ -5,7 +5,7 @@ import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
 import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, PORT, WEB_DIST } from './config.ts';
-import { allChats, attachChat, conversations, listAccounts, suggestions } from './claudeData.ts';
+import { allChats, attachChat, conversations, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
 import { shareMemory } from './memory.ts';
@@ -316,6 +316,11 @@ const server = http.createServer(async (req, res) => {
         if (!type?.startsWith('image/') || ext === '.svg') return json(res, 415, { error: 'Nur Bilder.' });
         res.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache' });
         return fs.createReadStream(abs).pipe(res);
+      }
+      if (parts[3] === 'commands') {
+        // The tab's own account decides which skills exist; fall back to the project's.
+        const tab = tabs.get(url.searchParams.get('tab') ?? '');
+        return json(res, 200, slashCommands(p.path, tab?.rec.account || p.account || DEFAULT_CLAUDE_DIR));
       }
       if (parts[3] === 'conversations')
         return json(res, 200, conversations(p.path));

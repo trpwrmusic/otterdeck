@@ -270,3 +270,79 @@ export function conversations(projectPath: string, limit = 9): Conversation[] {
   }
   return out;
 }
+
+// ---------- slash commands for the chat box ----------
+
+export interface SlashCommand {
+  name: string;
+  description: string;
+  source: 'eingebaut' | 'Skill' | 'Projekt' | 'Eigener Befehl';
+}
+
+const BUILT_IN: [string, string][] = [
+  ['clear', 'Neues Gespräch beginnen'],
+  ['compact', 'Gespräch verdichten, um Platz zu schaffen'],
+  ['model', 'Modell wechseln'],
+  ['resume', 'Früheres Gespräch fortsetzen'],
+  ['context', 'Zeigen, wie voll der Kontext ist'],
+  ['usage', 'Verbrauch und Limits des Plans'],
+  ['memory', 'Erinnerungen und CLAUDE.md bearbeiten'],
+  ['review', 'Änderungen prüfen lassen'],
+  ['init', 'CLAUDE.md für dieses Projekt anlegen'],
+  ['agents', 'Agenten verwalten'],
+  ['mcp', 'MCP-Server verwalten'],
+  ['permissions', 'Berechtigungen ansehen und ändern'],
+  ['rewind', 'Zu einem früheren Stand zurückspringen'],
+  ['export', 'Gespräch exportieren'],
+  ['config', 'Einstellungen öffnen'],
+  ['help', 'Hilfe zu Claude Code'],
+];
+
+function frontmatterDescription(file: string): string {
+  try {
+    const text = fs.readFileSync(file, 'utf8').slice(0, 4000);
+    const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    const body = fm ? fm[1] : '';
+    const m = body.match(/^description:\s*(?:>-?|\|-?)?\s*\r?\n?([\s\S]*?)(?:\r?\n[a-z_-]+:|$)/im);
+    const d = (m?.[1] ?? '').replace(/^["']|["']$/g, '').replace(/\s+/g, ' ').trim();
+    if (d) return d.length > 110 ? d.slice(0, 109) + '…' : d;
+    const first = text.replace(/^---[\s\S]*?---/, '').split('\n').find((l) => l.trim() && !l.startsWith('#'));
+    return (first ?? '').trim().slice(0, 110);
+  } catch {
+    return '';
+  }
+}
+
+function listCommands(dir: string, source: SlashCommand['source']): SlashCommand[] {
+  const out: SlashCommand[] = [];
+  try {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isFile() && e.name.endsWith('.md')) out.push({ name: e.name.slice(0, -3), description: frontmatterDescription(path.join(dir, e.name)), source });
+    }
+  } catch {}
+  return out;
+}
+
+function listSkills(dir: string, source: SlashCommand['source']): SlashCommand[] {
+  const out: SlashCommand[] = [];
+  try {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, e.name, 'SKILL.md');
+      if (e.isDirectory() && fs.existsSync(file)) out.push({ name: e.name, description: frontmatterDescription(file), source });
+    }
+  } catch {}
+  return out;
+}
+
+/** Everything you can type after "/" in a project: Claude's own commands, your skills and commands, the project's. */
+export function slashCommands(projectPath: string, accountDir: string): SlashCommand[] {
+  const all = [
+    ...listCommands(path.join(projectPath, '.claude', 'commands'), 'Projekt'),
+    ...listSkills(path.join(projectPath, '.claude', 'skills'), 'Projekt'),
+    ...listCommands(path.join(accountDir, 'commands'), 'Eigener Befehl'),
+    ...listSkills(path.join(accountDir, 'skills'), 'Skill'),
+    ...BUILT_IN.map(([name, description]) => ({ name, description, source: 'eingebaut' as const })),
+  ];
+  const seen = new Set<string>();
+  return all.filter((c) => !seen.has(c.name) && seen.add(c.name));
+}

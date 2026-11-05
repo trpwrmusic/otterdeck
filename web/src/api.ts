@@ -57,6 +57,8 @@ export const api = {
   newTab: (projectId: string, kind: 'claude' | 'shell', resume?: string, prompt?: string, account?: string) =>
     call<{ id: string }>('POST', '/api/tabs', { projectId, kind, resume, prompt, account }),
   sendToTab: (id: string, text: string, lead?: string) => call('POST', `/api/tabs/${id}/send`, { text, lead }),
+  commands: (projectId: string, tabId: string) =>
+    call<{ name: string; description: string; source: string }[]>('GET', `/api/projects/${projectId}/commands?tab=${tabId}`),
   typeToTab: (id: string, text: string) => call('POST', `/api/tabs/${id}/type`, { text }),
   keyToTab: (id: string, key: 'allow' | 'deny' | 'stop') => call('POST', `/api/tabs/${id}/key`, { key }),
   changes: (id: string, mode: CompareMode) => call<Changes>('GET', `/api/projects/${id}/changes?mode=${mode}`),

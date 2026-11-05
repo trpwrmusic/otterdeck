@@ -8,9 +8,12 @@ export type ShortcutAction =
   | { type: 'new-shell' }
   | { type: 'tab-index'; index: number }
   | { type: 'tab'; delta: 1 | -1 }
-  | { type: 'toggle-view' };
+  | { type: 'toggle-view' }
+  | { type: 'palette' };
 
 export function shortcutFor(e: KeyboardEvent): ShortcutAction | null {
+  // Ctrl+K opens the command palette from anywhere, the terminal included.
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.code === 'KeyK') return { type: 'palette' };
   if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return null;
   switch (e.code) {
     case 'KeyJ':

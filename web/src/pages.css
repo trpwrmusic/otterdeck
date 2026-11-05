@@ -26,8 +26,10 @@
 
 /* Segmented control: as wide as its options, the active one a white key on a grey track. */
 .segmented {
+  position: relative;
   display: inline-flex;
-  background: var(--active);
+  background: transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius-control);
   padding: 2px;
   flex: none;
@@ -44,9 +46,16 @@
 .segmented button:hover {
   color: var(--text);
 }
+.segmented button {
+  position: relative;
+  z-index: 1;
+}
 .segmented button.on {
-  background: var(--surface);
   color: var(--text);
+}
+.segmented .glide {
+  background: var(--active);
+  border-radius: 6px;
 }
 
 /* ---------- drag & drop ---------- */

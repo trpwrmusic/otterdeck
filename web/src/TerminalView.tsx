@@ -10,12 +10,12 @@ import { api, termUrl } from './api';
 import { isAppShortcut } from './shortcuts';
 
 const DARK: ITheme = {
-  background: '#161c1d',
-  foreground: '#e6eeee',
-  cursor: '#4fb6cb',
-  cursorAccent: '#161c1d',
-  selectionBackground: 'rgba(79,182,203,0.28)',
-  black: '#243032',
+  background: '#0e0e0f',
+  foreground: '#e6e6e8',
+  cursor: '#ededee',
+  cursorAccent: '#0e0e0f',
+  selectionBackground: 'rgba(255,255,255,0.16)',
+  black: '#1f1f22',
   red: '#e0786e',
   green: '#9cc48a',
   yellow: '#e2bf72',
@@ -23,7 +23,7 @@ const DARK: ITheme = {
   magenta: '#c49ad8',
   cyan: '#7fc0bc',
   white: '#d8d2ca',
-  brightBlack: '#6c7b7d',
+  brightBlack: '#6f6f76',
   brightRed: '#ee8d83',
   brightGreen: '#b2d6a0',
   brightYellow: '#ecd08e',
@@ -47,7 +47,7 @@ const LIGHT: ITheme = {
   magenta: '#8a4fa8',
   cyan: '#2f8580',
   white: '#d9d3cc',
-  brightBlack: '#6c7b7d',
+  brightBlack: '#6f6f76',
   brightRed: '#d5594e',
   brightGreen: '#5f9d4b',
   brightYellow: '#b38a22',
@@ -74,7 +74,7 @@ export function TerminalView({ tab, active }: { tab: TabView; active: boolean })
       cursorBlink: true,
       scrollback: 5000,
       allowProposedApi: true,
-      theme: darkQuery.matches ? DARK : LIGHT,
+      theme: DARK,
     });
     termRef.current = term;
     const fit = new FitAddon();
@@ -104,7 +104,7 @@ export function TerminalView({ tab, active }: { tab: TabView; active: boolean })
       return true;
     });
 
-    const onScheme = () => (term.options.theme = darkQuery.matches ? DARK : LIGHT);
+    const onScheme = () => (term.options.theme = DARK);
     darkQuery.addEventListener('change', onScheme);
 
     let ws: WebSocket | null = null;

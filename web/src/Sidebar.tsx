@@ -1,9 +1,10 @@
-import { useState, type DragEvent, type MouseEvent } from 'react';
-import { BellRing, ChevronRight, MessagesSquare, Pin, Plus, RefreshCw } from 'lucide-react';
+import { useRef, useState, type DragEvent, type MouseEvent } from 'react';
+import { BellRing, ChevronRight, MessagesSquare, Pin, Plus, RefreshCw, Search } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
 import { api, attentionOf, usePersisted } from './api';
 import { ContextMenu, ProjectAvatar, StatusMark, type MenuItem } from './bits';
 import { CHAT_MIME } from './ChatsPage';
+import { Glide } from './Glide';
 
 const HOUR = 3600_000;
 
@@ -56,12 +57,13 @@ interface Props {
   onDropChat: (projectId: string, chat: Chat) => void;
   notifyPermission: NotificationPermission | 'unsupported';
   onEnableNotifications: () => void;
+  onPalette: () => void;
   /** Opens the next session in that state. */
   onJump: (status: 'waiting' | 'working' | 'done') => void;
 }
 
 export function Sidebar(props: Props) {
-  const { state, selectedId, onSelect, view, onAdd, onChats, dragging, onDropChat, notifyPermission, onEnableNotifications, onJump } = props;
+  const { state, selectedId, onSelect, view, onAdd, onChats, dragging, onDropChat, notifyPermission, onEnableNotifications, onJump, onPalette } = props;
   const waiting = state.tabs.filter((t) => t.status === 'waiting').length;
   const working = state.tabs.filter((t) => t.status === 'working').length;
   const done = state.tabs.filter((t) => t.status === 'done' && t.unseen).length;
@@ -70,6 +72,15 @@ export function Sidebar(props: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number; project: ProjectView } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
+  const [peek, setPeek] = useState<{ id: string; top: number } | null>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  /** Resting on a row for a moment shows what's going on there. */
+  const peekSoon = (id: string | null, el?: HTMLElement) => {
+    clearTimeout(peekTimer.current);
+    if (!id || !el) return setPeek(null);
+    const top = el.getBoundingClientRect().top;
+    peekTimer.current = window.setTimeout(() => setPeek({ id, top }), 450);
+  };
   const groups = groupProjects(state);
 
   const dropProps = (p: ProjectView) => ({
@@ -130,13 +141,16 @@ export function Sidebar(props: Props) {
     const attention = attentionOf(tabs);
     const line = compact && !attention ? null : statusLine(p, tabs);
     const selected = p.id === selectedId && !adding;
+    // A permission question can be answered right here; open questions need the chat or terminal.
+    const waitingTab = tabs.find((t) => t.status === 'waiting' && t.question?.startsWith('Möchte'));
     return (
       <div
         key={p.id}
         className={`row${selected ? ' selected' : ''}${compact ? ' compact' : ''}${!p.exists ? ' missing' : ''}${dropOn === p.id ? ' drop' : ''}`}
         onClick={() => onSelect(p.id)}
         onContextMenu={(e) => openMenu(e, p)}
-        title={p.path}
+        onMouseEnter={(e) => peekSoon(p.id, e.currentTarget)}
+        onMouseLeave={() => peekSoon(null)}
         {...dropProps(p)}
       >
         <ProjectAvatar project={p} size={compact ? 24 : 30} />
@@ -162,6 +176,16 @@ export function Sidebar(props: Props) {
             </div>
           )}
           {line && <div className={`row-line ${line.tone}`}>{line.text}</div>}
+          {waitingTab && (
+            <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+              <button className="mini primary" onClick={() => api.keyToTab(waitingTab.id, 'allow')}>
+                Erlauben
+              </button>
+              <button className="mini" onClick={() => api.keyToTab(waitingTab.id, 'deny')}>
+                Ablehnen
+              </button>
+            </div>
+          )}
         </div>
         <div className="row-mark">
           <StatusMark attention={attention} />
@@ -212,6 +236,12 @@ export function Sidebar(props: Props) {
         </div>
       )}
 
+      <button className="search" onClick={onPalette}>
+        <Search size={14} />
+        <span>Suchen oder Befehl</span>
+        <kbd className="kbd">Strg K</kbd>
+      </button>
+
       <div className="nav">
         <button className={`nav-item${view === 'chats' ? ' on' : ''}`} onClick={onChats}>
           <MessagesSquare size={16} /> Chats
@@ -219,6 +249,7 @@ export function Sidebar(props: Props) {
       </div>
 
       <div className={`sidebar-scroll${dragging ? ' dragging' : ''}`}>
+        <Glide selector=".row.selected" watch={[selectedId, adding, state.projects.length, showOlder, groups.active.length, groups.pinned.length, groups.recent.length]} />
         {dragging && <div className="drop-hint">Auf ein Projekt ziehen</div>}
         {state.projects.length === 0 && (
           <button className="sidebar-empty" onClick={onAdd}>
@@ -259,7 +290,37 @@ export function Sidebar(props: Props) {
         </button>
       )}
 
+      {peek && !menu && !dragging && <Peek state={state} projectId={peek.id} top={peek.top} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.project)} onClose={() => setMenu(null)} />}
     </aside>
+  );
+}
+
+/** A small card beside a row: what Claude is doing or asking, and what it last said. */
+function Peek({ state, projectId, top }: { state: AppState; projectId: string; top: number }) {
+  const p = state.projects.find((x) => x.id === projectId);
+  if (!p) return null;
+  const tabs = state.tabs.filter((t) => t.projectId === p.id && t.kind === 'claude' && t.status !== 'dormant');
+  return (
+    <div className="peek" style={{ top: Math.min(top, window.innerHeight - 260) }}>
+      <div className="peek-head">
+        <span className="peek-name">{p.displayName}</span>
+        {p.branch && <span className="pill tiny">{p.branch}</span>}
+      </div>
+      <div className="peek-path">{p.path}</div>
+      {tabs.length === 0 && <div className="peek-quiet">Keine laufende Sitzung</div>}
+      {tabs.slice(0, 3).map((t) => (
+        <div className="peek-tab" key={t.id}>
+          <div className="peek-title">
+            <StatusMark attention={attentionOf([t])} size={12} />
+            <span>{t.title}</span>
+          </div>
+          {t.status === 'waiting' && t.question && <div className="peek-line wait">{t.question}</div>}
+          {t.status === 'working' && <div className="peek-line">{t.activity ?? 'Arbeitet …'}</div>}
+          {t.lastPrompt && <div className="peek-line quiet">Du: {t.lastPrompt}</div>}
+          {t.lastMessage && t.status !== 'working' && <div className="peek-line">{t.lastMessage}</div>}
+        </div>
+      ))}
+    </div>
   );
 }

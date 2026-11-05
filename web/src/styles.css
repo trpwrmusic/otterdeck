@@ -1,62 +1,58 @@
 /*
- * Otterdeck — "framed sheet" (taste-skill app style, seed 1855484100).
- * One tinted frame (sidebar + top rows) around a sheet that holds the work.
- * Face: river water. The frame is a low-chroma blue-green grey, the one hue a deep petrol.
- * Colour goes on state (working / waiting / done) and on the one primary action, not on chrome.
- * Grid: sidebar 236 · sheet inset 8px right and bottom · 16px sheet radius · one 16px gap inside.
+ * Otterdeck — Night shift.
+ * Neutral near-black, structure from 1px lines instead of cards, white as the one action colour.
+ * Hue only on state: working (blue), waiting for you (amber), done (green), and on diffs.
  */
 
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-sans/600.css';
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/500.css';
 
 :root {
-  color-scheme: light;
-  --ground: #eef3f3; /* the frame: river-grey */
-  --surface: #ffffff; /* the sheet */
-  --raised: #f3f6f7; /* a step inside the sheet */
-  --active: #dfe7e8; /* selected row in the frame */
-  --hover: rgba(19, 40, 44, 0.055);
-  --border: #e3e8e9;
-  --rule: #eef1f2;
-  --control: #c9d0d2;
-  --text: #121718;
-  --muted: #4f5a5c; /* 7:1 on white */
-  --faint: #66706f; /* 4.9:1 on white, 4.6:1 on the frame */
+  color-scheme: dark;
+  --ground: #0b0b0c; /* window and sidebar */
+  --surface: #0e0e0f; /* work area */
+  --raised: #151516; /* code blocks, cards inside the work */
+  --active: #1d1d20; /* selection */
+  --hover: #161618;
+  --border: #1f1f22; /* the structural line */
+  --rule: #19191b;
+  --control: #2c2c30; /* control outlines */
+  --text: #ededee;
+  --muted: #a1a1a7;
+  --faint: #85858c;
 
-  --accent: #1b6c80; /* petrol */
-  --accent-strong: #145566;
-  --accent-tint: #e2f0f2;
-  --accent-text: #145566;
-  --primary: #131718; /* near-black primary action */
-  --on-primary: #ffffff;
+  --accent: #ededee; /* focus, selection marks: white, not a hue */
+  --accent-strong: #ffffff;
+  --accent-tint: #1d1d20;
+  --accent-text: #ededee;
+  --primary: #ededee;
+  --on-primary: #0b0b0c;
 
-  --working: #1b6c80;
-  --waiting: #a86f0c; /* amber: needs you */
-  --waiting-tint: #fbf1dc;
-  --waiting-ink: #7a4f06;
-  --positive: #1e7b4f;
-  --negative: #c4242a;
-  --danger: #c4242a;
+  --working: #8ab4ff;
+  --waiting: #f5b84a;
+  --waiting-tint: #1c1810;
+  --waiting-line: #3a2f17;
+  --waiting-ink: #f7c46a;
+  --positive: #5fd08a;
+  --negative: #ff7a70;
+  --danger: #ff7a70;
 
-  --plus: #1e7b4f;
-  --minus: #b4302a;
-  --add-bg: #e8f5ed;
-  --del-bg: #fcecea;
-  --add-sign: #1e7b4f;
-  --del-sign: #b4302a;
+  --plus: #6fd697;
+  --minus: #ff8c82;
+  --add-bg: rgba(95, 208, 138, 0.1);
+  --del-bg: rgba(255, 110, 100, 0.1);
+  --add-sign: #6fd697;
+  --del-sign: #ff8c82;
 
-  --shadow-float: 0 1px 2px rgba(10, 30, 35, 0.08), 0 12px 32px rgba(10, 30, 35, 0.14);
-  --term-bg: #ffffff;
+  --shadow-float: 0 0 0 1px #26262a, 0 18px 50px rgba(0, 0, 0, 0.6);
+  --term-bg: #0e0e0f;
 
-  --radius-sheet: 16px;
+  --radius-sheet: 0px;
   --radius-card: 10px;
-  --radius-control: 8px;
-  --sheet-inset: 8px;
-  --sidebar: 236px;
-  --gap: 16px;
+  --radius-control: 7px;
+  --sheet-inset: 0px;
+  --sidebar: 248px;
+  --gap: 14px;
 
   /* older names used by panel.css and chat.css */
   --text-2: var(--muted);
@@ -66,55 +62,13 @@
   --shadow-sm: none;
   --shadow: var(--shadow-float);
   --shadow-lg: var(--shadow-float);
-  --on-accent: #ffffff;
+  --on-accent: #0b0b0c;
 
-  --font: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --code-font: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --spring: cubic-bezier(0.34, 1.4, 0.5, 1);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --ground: #0f1415;
-    --surface: #161c1d;
-    --raised: #1d2425;
-    --active: #243031;
-    --hover: rgba(220, 240, 242, 0.06);
-    --border: #243032;
-    --rule: #1e2728;
-    --control: #3a4749;
-    --text: #edf3f3;
-    --muted: #b3c0c1;
-    --faint: #93a1a2;
-
-    --accent: #4fb6cb;
-    --accent-strong: #79cbdc;
-    --accent-tint: #173338;
-    --accent-text: #8fd3e2;
-    --primary: #edf3f3;
-    --on-primary: #0f1415;
-
-    --working: #4fb6cb;
-    --waiting: #e3a33c;
-    --waiting-tint: #33270f;
-    --waiting-ink: #f0c070;
-    --positive: #57c08a;
-    --negative: #ef7a6e;
-    --danger: #ef7a6e;
-
-    --plus: #6fcf97;
-    --minus: #f08a80;
-    --add-bg: rgba(87, 192, 138, 0.12);
-    --del-bg: rgba(239, 122, 110, 0.12);
-    --add-sign: #6fcf97;
-    --del-sign: #f08a80;
-
-    --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 40px rgba(0, 0, 0, 0.55);
-    --term-bg: #161c1d;
-  }
+  --spring: cubic-bezier(0.34, 1.45, 0.5, 1);
 }
 
 * {
@@ -129,7 +83,7 @@ body,
 body {
   background: var(--ground);
   color: var(--text);
-  font: 14px/1.45 var(--font);
+  font: 13.5px/1.45 var(--font);
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -217,6 +171,7 @@ h3 {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  box-shadow: inset -1px 0 0 var(--border);
 }
 .brand {
   display: flex;
@@ -314,6 +269,7 @@ h3 {
 }
 
 .sidebar-scroll {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   padding: 0 8px 16px;
@@ -371,7 +327,15 @@ h3 {
   background: var(--hover);
 }
 .row.selected {
+  background: transparent;
+}
+.row > * {
+  position: relative;
+  z-index: 1;
+}
+.sidebar-scroll > .glide {
   background: var(--active);
+  border-radius: var(--radius-control);
 }
 .row.compact {
   padding: 5px 8px;
@@ -545,9 +509,11 @@ h3 {
 .pane-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 56px;
-  padding: 0 calc(var(--sheet-inset) + 4px) 0 8px;
+  gap: 10px;
+  height: 48px;
+  padding: 0 12px 0 20px;
+  box-shadow: inset 0 -1px 0 var(--border);
+  background: var(--surface);
 }
 .pane-title {
   flex: 1;
@@ -557,7 +523,7 @@ h3 {
   gap: 10px;
 }
 .pane-title h1 {
-  font-size: 18px;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -577,7 +543,7 @@ h3 {
   font-weight: 500;
   padding: 0 8px;
   border-radius: 6px;
-  background: var(--surface);
+  background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
   white-space: nowrap;
@@ -597,17 +563,18 @@ h3 {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  height: 34px;
+  height: 32px;
   padding: 0 14px;
   border-radius: var(--radius-control);
-  background: var(--surface);
+  background: transparent;
   border: 1px solid var(--control);
   font-weight: 500;
   white-space: nowrap;
   transition: background 0.15s var(--ease), border-color 0.15s, transform 0.1s var(--ease);
 }
 .btn:hover {
-  background: var(--raised);
+  background: var(--hover);
+  border-color: #3a3a3f;
 }
 .btn:active {
   transform: scale(0.97);
@@ -622,7 +589,7 @@ h3 {
   color: var(--on-primary);
 }
 .btn.primary:hover {
-  background: color-mix(in srgb, var(--primary) 86%, var(--accent));
+  background: #ffffff;
 }
 .btn.quiet {
   background: transparent;
@@ -634,7 +601,7 @@ h3 {
   color: var(--text);
 }
 .btn.small {
-  height: 32px;
+  height: 30px;
   padding: 0 12px;
   font-size: 13px;
 }
@@ -649,9 +616,10 @@ h3 {
 .tabs {
   position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 2px;
-  padding: 0 var(--sheet-inset) 0 4px;
+  padding: 8px 14px 6px;
+  background: var(--surface);
   overflow-x: auto;
   flex: none;
   scrollbar-width: none;
@@ -664,9 +632,9 @@ h3 {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 36px;
-  padding: 0 6px 0 10px;
-  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  height: 30px;
+  padding: 0 4px 0 10px;
+  border-radius: 6px;
   color: var(--muted);
   max-width: 240px;
   flex: none;
@@ -675,25 +643,13 @@ h3 {
 }
 .tab:hover {
   color: var(--text);
-  background: var(--hover);
 }
 .tab.active {
   color: var(--text);
 }
-.tab::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  transform: scaleX(0);
-  transition: transform 0.25s var(--ease);
-}
-.tab.active::after {
-  transform: scaleX(1);
+.tab > * {
+  position: relative;
+  z-index: 1;
 }
 .tab-icon {
   display: grid;
@@ -730,9 +686,6 @@ h3 {
   padding: 0 10px;
   color: var(--faint);
 }
-.tab.add::after {
-  display: none;
-}
 .tab.add.active {
   color: var(--text);
 }
@@ -742,10 +695,7 @@ h3 {
   flex: 1;
   min-height: 0;
   display: flex;
-  margin: 0 var(--sheet-inset) var(--sheet-inset) 0;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sheet);
   overflow: hidden;
 }
 .pane-col {
@@ -938,10 +888,7 @@ h3 {
 
 .pane.add,
 .pane.chats {
-  margin: var(--sheet-inset) var(--sheet-inset) var(--sheet-inset) 0;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sheet);
   overflow-y: auto;
 }
 .add-inner {
@@ -1120,3 +1067,18 @@ h3 {
   }
 }
 
+
+/* ---------- the glide: one highlight that moves to the active item ---------- */
+
+.glide {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: transform 0.32s var(--spring), width 0.32s var(--spring), height 0.32s var(--spring), opacity 0.15s;
+}
+.tabs > .glide {
+  background: var(--active);
+  border-radius: 6px;
+}

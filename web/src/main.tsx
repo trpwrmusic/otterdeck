@@ -4,6 +4,7 @@ import './styles.css';
 import './panel.css';
 import './pages.css';
 import './chat/chat.css';
+import './nightshift.css';
 import './responsive.css';
 
 createRoot(document.getElementById('root')!).render(<App />);

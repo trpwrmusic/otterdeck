@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronRight, File, Folder, FolderOpen, RefreshCw } from 'lucide-react';
 import type { ChangedFile, Changes, CompareMode, DirEntry, ProjectView } from '../../shared/types';
 import { api, useOnFileChange, usePersisted } from './api';
+import { Glide } from './Glide';
 
 const STATUS_LABEL: Partial<Record<ChangedFile['status'], string>> = {
   added: 'neu',
@@ -25,6 +26,7 @@ export function ChangesPanel(props: Props) {
   return (
     <aside className="side-panel">
       <div className="segmented panel-switch">
+        <Glide selector="button.on" watch={[tab]} />
         <button className={tab === 'changes' ? 'on' : ''} onClick={() => setTab('changes')}>
           Änderungen
         </button>

@@ -75,6 +75,30 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const input = useRef<HTMLTextAreaElement>(null);
+  const [commands, setCommands] = useState<{ name: string; description: string; source: string }[]>([]);
+  const [slashSel, setSlashSel] = useState(0);
+  const [slashClosed, setSlashClosed] = useState(false);
+
+  useEffect(() => {
+    api.commands(tab.projectId, tab.id).then(setCommands).catch(() => {});
+  }, [tab.projectId, tab.id]);
+
+  // "/" at the start, no space yet: suggest commands and skills.
+  const slashQuery = /^\/[^\s]*$/.test(draft) && !slashClosed ? draft.slice(1).toLowerCase() : null;
+  const slashList = useMemo(() => {
+    if (slashQuery === null) return [];
+    const starts = commands.filter((c) => c.name.toLowerCase().startsWith(slashQuery));
+    const contains = commands.filter((c) => !c.name.toLowerCase().startsWith(slashQuery) && c.name.toLowerCase().includes(slashQuery));
+    return [...starts, ...contains].slice(0, 8);
+  }, [commands, slashQuery]);
+  useEffect(() => setSlashSel(0), [slashQuery]);
+  useEffect(() => {
+    if (!draft.startsWith('/')) setSlashClosed(false);
+  }, [draft]);
+  const pickSlash = (name: string) => {
+    setDraft(`/${name} `);
+    input.current?.focus();
+  };
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -223,6 +247,25 @@ export function ChatView({ tab, onShowTerminal }: Props) {
       </div>
 
       <div className="composer-wrap">
+        {slashList.length > 0 && (
+          <div className="slash" role="listbox">
+            {slashList.map((c, i) => (
+              <button
+                key={c.name}
+                className={`slash-item${i === slashSel ? ' sel' : ''}`}
+                onMouseMove={() => setSlashSel(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickSlash(c.name);
+                }}
+              >
+                <span className="slash-name">/{c.name}</span>
+                <span className="slash-desc">{c.description}</span>
+                <span className="slash-src">{c.source}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="composer">
           <textarea
             ref={input}
@@ -232,6 +275,23 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             disabled={!alive}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
+              if (slashList.length) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setSlashSel((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + slashList.length) % slashList.length);
+                  return;
+                }
+                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && slashList[slashSel]?.name.toLowerCase() !== slashQuery)) {
+                  e.preventDefault();
+                  pickSlash(slashList[slashSel].name);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setSlashClosed(true);
+                  return;
+                }
+              }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 send();

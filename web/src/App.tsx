@@ -4,6 +4,7 @@ import type { AppState, Chat, TabView } from '../../shared/types';
 import { api, useAppState, usePersisted } from './api';
 import { AddProject } from './AddProject';
 import { ChatsPage } from './ChatsPage';
+import { CommandPalette, type Command } from './CommandPalette';
 import { ProjectPane } from './ProjectPane';
 import { Sidebar, sidebarOrder } from './Sidebar';
 import { shortcutFor } from './shortcuts';
@@ -36,6 +37,7 @@ export function App() {
 
   /** Narrow windows: the sidebar is a sheet that opens over the work. */
   const [navOpen, setNavOpen] = useState(false);
+  const [palette, setPalette] = useState(false);
   const selectProject = useCallback(
     (id: string) => {
       setView('project');
@@ -133,7 +135,7 @@ export function App() {
     const before = prev.current;
     const next = new Map(state.tabs.map((t) => [t.id, t]));
     prev.current = next;
-    if (!before.size || permission !== 'granted') return;
+    if (!before.size) return;
     for (const t of state.tabs) {
       const old = before.get(t.id);
       if (!old || old.status === t.status) continue;
@@ -141,9 +143,14 @@ export function App() {
       if (looking) continue;
       const p = state.projects.find((x) => x.id === t.projectId);
       const name = p?.displayName ?? 'Claude';
-      if (t.status === 'waiting') notify(`${name} wartet auf dich`, t.question ?? 'Claude braucht eine Antwort', t.id, openTabRef);
-      else if (t.status === 'done' && old.status === 'working')
-        notify(`${name} ist fertig`, t.lastMessage ?? t.title, t.id, openTabRef);
+      const waiting = t.status === 'waiting';
+      const finished = t.status === 'done' && old.status === 'working';
+      if (!waiting && !finished) continue;
+      const title = waiting ? `${name} wartet auf dich` : `${name} ist fertig`;
+      const body = waiting ? t.question ?? 'Claude braucht eine Antwort' : t.lastMessage ?? t.title;
+      // In the window: a short note with a way there. Outside it: a Windows notification.
+      if (viewing.current.visible) setToast({ text: title, action: { label: waiting ? 'Antworten' : 'Ansehen', run: () => openTabRef.current(t.id) } });
+      else if (permission === 'granted') notify(title, body, t.id, openTabRef);
     }
   }, [state, permission]);
 
@@ -199,6 +206,9 @@ export function App() {
         case 'toggle-view':
           window.dispatchEvent(new Event('otter:toggle-view'));
           break;
+        case 'palette':
+          setPalette((o) => !o);
+          break;
         case 'tab-index':
           if (pid && ptabs[action.index]) activate(pid, ptabs[action.index].id);
           break;
@@ -214,6 +224,31 @@ export function App() {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [selected, activeTab, openTab, selectProject, activate]);
+
+  /** What the palette offers to do, in the order it lists them. */
+  function paletteActions(): Command[] {
+    const pid = project?.id;
+    const list: Command[] = [];
+    if (pid) {
+      list.push(
+        { id: 'a:claude', group: 'Aktionen', title: `Neuer Chat in ${project!.displayName}`, keys: 'Strg ⇧ Enter', run: () => api.newTab(pid, 'claude').then(({ id }) => activate(pid, id)) },
+        { id: 'a:shell', group: 'Aktionen', title: `Neue Shell in ${project!.displayName}`, keys: 'Strg ⇧ ^', run: () => api.newTab(pid, 'shell').then(({ id }) => activate(pid, id)) },
+        { id: 'a:view', group: 'Aktionen', title: 'Terminal oder Chat umschalten', keys: 'Strg ⇧ Leer', run: () => window.dispatchEvent(new Event('otter:toggle-view')) },
+        { id: 'a:panel', group: 'Aktionen', title: 'Änderungen ein- oder ausblenden', run: () => window.dispatchEvent(new Event('otter:toggle-panel')) },
+      );
+    }
+    if (state!.tabs.some((t) => t.status === 'waiting'))
+      list.push({ id: 'a:next', group: 'Aktionen', title: 'Zur Sitzung, die auf dich wartet', keys: 'Strg ⇧ J', run: () => {
+        const t = state!.tabs.filter((x) => x.status === 'waiting').sort((a, b) => a.changedAt - b.changedAt)[0];
+        if (t) openTab(t.id);
+      } });
+    list.push(
+      { id: 'a:chats', group: 'Aktionen', title: 'Alle Chats durchsuchen', run: () => setView('chats') },
+      { id: 'a:add', group: 'Aktionen', title: 'Projekt hinzufügen', run: () => setView('add') },
+    );
+    if (state!.update.available) list.push({ id: 'a:restart', group: 'Aktionen', title: 'Otterdeck neu starten (neue Version)', run: () => api.restart() });
+    return list;
+  }
 
   if (!state)
     return (
@@ -240,6 +275,7 @@ export function App() {
         onDropChat={dropChat}
         notifyPermission={permission}
         onEnableNotifications={() => Notification.requestPermission().then(setPermission)}
+        onPalette={() => setPalette(true)}
         onJump={(status) => {
           // The oldest one first, and a different one than you're looking at when there are several.
           const list = state.tabs
@@ -276,6 +312,18 @@ export function App() {
           accounts={state.accounts}
           activeTab={activeTab}
           onActivate={(id) => activate(project.id, id)}
+        />
+      )}
+      {palette && (
+        <CommandPalette
+          state={state}
+          actions={paletteActions()}
+          onOpenProject={selectProject}
+          onOpenTab={openTab}
+          onOpenChat={(chat) =>
+            chat.projectId ? openChat(chat, chat.projectId) : (setView('chats'), setToast({ text: 'Zieh den Chat auf ein Projekt, um ihn dort fortzusetzen.' }))
+          }
+          onClose={() => setPalette(false)}
         />
       )}
       {toast && (

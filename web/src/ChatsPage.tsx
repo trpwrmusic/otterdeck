@@ -3,6 +3,7 @@ import { Folder, Search } from 'lucide-react';
 import type { AccountView, Chat, ProjectView } from '../../shared/types';
 import { api, timeAgo } from './api';
 import { ProjectAvatar } from './bits';
+import { Glide } from './Glide';
 
 export const CHAT_MIME = 'application/x-otter-chat';
 
@@ -81,6 +82,7 @@ export function ChatsPage({ projects, accounts, onOpen, onDragState, reload }: P
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chats durchsuchen" spellCheck={false} autoFocus />
           </div>
           <div className="segmented">
+            <Glide selector="button.on" watch={[onlyLoose]} />
             <button className={!onlyLoose ? 'on' : ''} onClick={() => setOnlyLoose(false)}>
               Alle
             </button>

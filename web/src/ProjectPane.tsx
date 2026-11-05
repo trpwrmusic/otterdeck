@@ -7,6 +7,7 @@ import { ChangesPanel } from './ChangesPanel';
 import { COMMENTS_LEAD, DiffView, FileView, formatComments, type ReviewComment } from './DiffView';
 import { TerminalView } from './TerminalView';
 import { ChatView } from './chat/ChatView';
+import { Glide } from './Glide';
 
 /** Diff and file tabs live only in this window, next to the terminal tabs. */
 interface ViewTab {
@@ -50,6 +51,13 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
   const viewOf = (t: TabView) => (t.kind === 'claude' ? tabViews[t.id] ?? defaultView : 'terminal');
   const setViewOf = (id: string, v: 'chat' | 'terminal') => setTabViews((m) => ({ ...m, [id]: v }));
   const currentMode = current ? viewOf(current) : 'terminal';
+
+  // The palette can show or hide the changes panel.
+  useEffect(() => {
+    const t = () => setPanelOpen((o) => !o);
+    window.addEventListener('otter:toggle-panel', t);
+    return () => window.removeEventListener('otter:toggle-panel', t);
+  }, [setPanelOpen]);
 
   // Ctrl+Shift+Space (see shortcuts.ts) flips the Claude tab in front.
   useEffect(() => {
@@ -137,6 +145,7 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
         <div className="pane-actions">
           {current?.kind === 'claude' && !currentView && (
             <div className="segmented view-switch" title="Strg+Umschalt+Leertaste">
+              <Glide selector="button.on" watch={[currentMode, current.id]} />
               <button className={currentMode === 'terminal' ? 'on' : ''} onClick={() => setViewOf(current.id, 'terminal')}>
                 Terminal
               </button>
@@ -185,6 +194,7 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
 
       {hasTabs && (
         <nav className="tabs">
+          <Glide selector=".tab.active" watch={[activeTab, current?.id, currentView?.id, tabs.length, views.length, current?.title]} />
           {tabs.map((t) => (
             <div
               key={t.id}
