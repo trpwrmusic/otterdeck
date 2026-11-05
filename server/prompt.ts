@@ -34,6 +34,27 @@ export function parsePrompt(screen: string[]): PromptView | null {
     if (options.length && /^\s{4,}\S/.test(l)) continue;
     if (options.length) break;
   }
+  // Menus without numbers ("❯ No, exit" / "  Yes, I trust this folder"): the lines right above the
+  // footer, one marked with ❯, the others indented the same way.
+  if (options.length < 2) {
+    options.length = 0;
+    selected = -1;
+    const block: { i: number; label: string; sel: boolean }[] = [];
+    let i = footer - 1;
+    while (i >= 0 && !lines[i].trim()) i--;
+    for (; i >= 0 && i >= footer - 12; i--) {
+      const m = lines[i].match(/^\s*(❯\s+|\s{2,})(\S.*)$/);
+      if (!m || !lines[i].trim() || /^\d{1,2}\./.test(m[2])) break;
+      block.unshift({ i, label: m[2].trim(), sel: m[1].includes('❯') });
+    }
+    if (block.length >= 2 && block.filter((b) => b.sel).length === 1) {
+      block.forEach((b, k) => {
+        options.push({ n: k + 1, label: b.label, description: '' });
+        if (b.sel) selected = k + 1;
+      });
+      top = block[0].i;
+    }
+  }
   if (options.length < 2 || selected < 0) return null;
 
   // Descriptions: the indented lines right under each option line.

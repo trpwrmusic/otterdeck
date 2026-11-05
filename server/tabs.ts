@@ -157,7 +157,9 @@ class Tab {
       args = ['--settings', HOOK_SETTINGS, '--add-dir', UPLOAD_DIR, '--append-system-prompt', CHAT_NOTE];
       // For tests, e.g. OTTER_CLAUDE_ARGS="--permission-mode default" to see permission prompts.
       if (process.env.OTTER_CLAUDE_ARGS) args.push(...process.env.OTTER_CLAUDE_ARGS.split(/\s+/).filter(Boolean));
-      if (this.rec.mode && /^(default|acceptEdits|plan|auto|bypassPermissions)$/.test(this.rec.mode)) args.push('--permission-mode', this.rec.mode);
+      // Our names for the modes (as the footer shows them) → Claude's --permission-mode values.
+      const mode = this.rec.mode === 'bypass' ? 'bypassPermissions' : this.rec.mode;
+      if (mode && /^(default|acceptEdits|plan|auto|bypassPermissions)$/.test(mode)) args.push('--permission-mode', mode);
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
       if (resume) args.push('--resume', resume);
       // A first message (e.g. review comments) starts the conversation right away.
@@ -456,6 +458,12 @@ class Tab {
   /** Answers Claude's prompts: allow = Enter (first option), deny/stop = Esc. */
   key(name: 'allow' | 'deny' | 'stop') {
     if (!this.proc) return false;
+    // "Allow" means the yes option, which is not always the selected one (folder trust: "No, exit").
+    const yes = name === 'allow' ? this.prompt?.options.find((o) => /^yes\b/i.test(o.label)) : undefined;
+    if (yes) {
+      void this.choose(yes.n);
+      return true;
+    }
     this.input(name === 'allow' ? '\r' : '\x1b');
     return true;
   }

@@ -256,6 +256,8 @@ export function Sidebar(props: Props) {
     const line = opts.compact && !attention ? null : statusLine(p, tabs);
     const selected = p.id === selectedId && !adding;
     const waitingTab = tabs.find((t) => t.status === 'waiting' && t.prompt?.kind === 'permission');
+    // By label, not position: in the folder-trust question option 1 is "No, exit".
+    const yesOption = waitingTab?.prompt?.options.find((o) => /^yes\b/i.test(o.label))?.n;
     const noOption = waitingTab?.prompt?.options.find((o) => /^no\b/i.test(o.label))?.n;
     return (
       <div
@@ -288,9 +290,9 @@ export function Sidebar(props: Props) {
             </div>
           )}
           {line && <div className={`row-line ${line.tone}`}>{line.text}</div>}
-          {waitingTab && (
+          {waitingTab && yesOption !== undefined && (
             <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-              <button className="mini primary" onClick={() => api.choose(waitingTab.id, 1)}>
+              <button className="mini primary" onClick={() => api.choose(waitingTab.id, yesOption)}>
                 Erlauben
               </button>
               {noOption !== undefined && (
