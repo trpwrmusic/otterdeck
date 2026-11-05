@@ -102,6 +102,23 @@ export function isRemote(req: http.IncomingMessage) {
 
 /** A tailnet request from the machine's owner, with our own page as origin (if any). */
 export function remoteAllowed(req: http.IncomingMessage, needOrigin: boolean) {
+  const ok = checkRemote(req, needOrigin);
+  // Serve was just switched on (e.g. by the install script): look again right away.
+  if (!ok && isRemote(req) && !info.serving) refreshRemote();
+  if (!ok && process.env.OTTER_DEBUG_REMOTE)
+    console.log('remote abgelehnt', {
+      host: req.headers.host,
+      addr: req.socket.remoteAddress,
+      login: req.headers['tailscale-user-login'],
+      origin: req.headers.origin,
+      serving: info.serving,
+      owner: info.owner,
+      me: info.host,
+    });
+  return ok;
+}
+
+function checkRemote(req: http.IncomingMessage, needOrigin: boolean) {
   if (!isRemote(req) || !info.serving || !info.owner) return false;
   // tailscale serve only proxies from the local machine, and sets this header itself.
   const addr = req.socket.remoteAddress ?? '';

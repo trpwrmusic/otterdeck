@@ -8,6 +8,7 @@
 #   OTTER_TAILSCALE_SOCKET  socket of a tailscaled running without root
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 DIR="$PWD"
 NODE_DIR="${NODE_DIR:-$HOME/.local/node/bin}"
 export PATH="$NODE_DIR:$HOME/.local/bin:$PATH"
