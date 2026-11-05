@@ -9,6 +9,19 @@ import { PromptCard } from './PromptCard';
 import { formatSize, ModeMenu, type Attachment } from './Composer';
 
 type Tool = Extract<ChatItem, { k: 'tool' }>;
+/** Phone-sized window (same breakpoint as responsive.css). */
+function useNarrow() {
+  const q = '(max-width: 760px)';
+  const [narrow, setNarrow] = useState(() => window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
+
 type Block =
   | { k: 'item'; item: ChatItem }
   | { k: 'steps'; tools: Tool[] }
@@ -199,6 +212,8 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   }, [draft]);
 
   const blocks = useMemo(() => toBlocks(items), [items]);
+  const lastText = useMemo(() => blocks.reduce((at, b, i) => (b.k === 'item' && b.item.k === 'text' ? i : at), -1), [blocks]);
+  const narrow = useNarrow();
   const running = tab.status === 'working';
   const alive = !['exited', 'dormant'].includes(tab.status);
 
@@ -282,7 +297,15 @@ export function ChatView({ tab, onShowTerminal }: Props) {
       <div
         className="chat-scroll"
         ref={scroller}
-        onClick={handleCopyClick}
+        onClick={(e) => {
+          handleCopyClick(e);
+          // Touch screens have no hover: tapping an answer shows its copy button.
+          const wrap = (e.target as HTMLElement).closest('.msg-claude-wrap');
+          if (wrap && !(e.target as HTMLElement).closest('[data-copy], a, button')) {
+            for (const w of e.currentTarget.querySelectorAll('.msg-claude-wrap.tapped')) if (w !== wrap) w.classList.remove('tapped');
+            wrap.classList.toggle('tapped');
+          }
+        }}
         onScroll={(e) => {
           const el = e.currentTarget;
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
@@ -311,7 +334,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
                 </div>
               )}
               {b.k === 'item' && b.item.k === 'text' && (
-                <div className="msg-claude-wrap">
+                <div className={`msg-claude-wrap${i === lastText ? ' last' : ''}`}>
                   <div className="md msg-claude" dangerouslySetInnerHTML={{ __html: renderMarkdown(b.item.text) }} />
                   <button className="copy-btn msg-copy" data-copy={encodeURIComponent(b.item.text)} title="Antwort kopieren">
                     Kopieren
@@ -417,7 +440,13 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             ref={input}
             value={draft}
             rows={1}
-            placeholder={!alive ? 'Claude läuft gerade nicht' : shellMode ? 'Shell-Befehl · Claude liest die Ausgabe mit' : 'Nachricht an Claude · ! für einen Shell-Befehl'}
+            placeholder={
+              !alive
+                ? 'Claude läuft gerade nicht'
+                : shellMode
+                  ? narrow ? 'Shell-Befehl' : 'Shell-Befehl · Claude liest die Ausgabe mit'
+                  : narrow ? 'Nachricht an Claude' : 'Nachricht an Claude · ! für einen Shell-Befehl'
+            }
             disabled={!alive}
             onChange={(e) => {
               const v = e.target.value;

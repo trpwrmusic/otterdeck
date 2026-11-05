@@ -576,7 +576,8 @@
   place-items: center;
   width: 28px;
   height: 28px;
-  margin: 0 2px;
+  /* the row aligns to the bottom (the box grows with more lines): centre on the 36px buttons */
+  margin: 0 4px 4px;
   border-radius: 8px;
   background: rgba(199, 146, 255, 0.16);
   font: 700 15px var(--mono, ui-monospace, monospace);

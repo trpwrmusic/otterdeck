@@ -61,7 +61,7 @@ export function ModeMenu({ tab }: { tab: TabView }) {
     <div className="mode" ref={box}>
       <button className={`mode-btn${tab.mode && tab.mode !== 'default' ? ' on' : ''}`} onClick={() => setOpen(!open)} title="Modus (wie Umschalt+Tab im Terminal)">
         <Icon size={14} />
-        <span>{current?.label ?? 'Modus'}</span>
+        <span className="mode-btn-label">{current?.label ?? 'Modus'}</span>
         <ChevronDown size={13} />
       </button>
       {open && (

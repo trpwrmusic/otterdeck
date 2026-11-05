@@ -88,9 +88,24 @@
     padding-top: env(safe-area-inset-top);
   }
 }
+/* Touch: no hover, so the copy button shows on the newest answer and on the one you tap. */
 @media (hover: none) {
-  .msg-copy,
   .code-wrap .copy-btn {
     opacity: 1;
+  }
+  .msg-claude-wrap.last .msg-copy,
+  .msg-claude-wrap.tapped .msg-copy {
+    opacity: 1;
+  }
+}
+
+/* Phone: the mode button shrinks to its icon so the text box keeps its width. */
+@media (max-width: 760px) {
+  .mode-btn-label {
+    display: none;
+  }
+  .mode-btn {
+    gap: 2px;
+    padding: 0 6px;
   }
 }
