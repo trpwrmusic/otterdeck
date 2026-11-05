@@ -36,8 +36,24 @@ export function App() {
     stored === null ? null : stored?.startsWith('view:') ? stored : tabs.find((t) => t.id === stored)?.id ?? tabs[0]?.id ?? null;
 
   /** Narrow windows: the sidebar is a sheet that opens over the work. */
-  // On a phone the project list comes first.
-  const [navOpen, setNavOpen] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  const [navOpen, setNavOpen] = useState(false);
+  // Phone start: straight into what needs you (a waiting session, then a finished unread one),
+  // otherwise back where you were. The project list only when nothing was open yet.
+  const booted = useRef(false);
+  useEffect(() => {
+    if (booted.current || !state) return;
+    booted.current = true;
+    if (!window.matchMedia('(max-width: 760px)').matches) return;
+    const newest = (list: typeof state.tabs) => [...list].sort((a, b) => b.changedAt - a.changedAt)[0];
+    const urgent = newest(state.tabs.filter((t) => t.status === 'waiting')) ?? newest(state.tabs.filter((t) => t.status === 'done' && t.unseen));
+    if (urgent && state.projects.some((p) => p.id === urgent.projectId)) {
+      setSelected(urgent.projectId);
+      setActiveTabs((m) => ({ ...m, [urgent.projectId]: urgent.id }));
+      return;
+    }
+    if (!state.projects.some((p) => p.id === selected)) setNavOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
   const [palette, setPalette] = useState(false);
   /** NOLA task to unfold in the side panel (picked in the search). */
   const [focusTask, setFocusTask] = useState<number | null>(null);
