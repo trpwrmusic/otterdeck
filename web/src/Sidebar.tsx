@@ -31,9 +31,13 @@ export function groupProjects(state: AppState, sort: ActiveSort = 'alpha', now =
   // Sections go by real activity: a chat or your use, not when a project was added.
   const rank = (p: ProjectView) => {
     const at = activity.get(p.id)!;
-    return p.pinned ? 0 : attentionOf(tabsOf(p)) || now - at < 6 * HOUR ? 1 : now - at < 24 * HOUR ? 2 : 3;
+    if (p.pinned) return 0;
+    if (attentionOf(tabsOf(p)) || now - at < 6 * HOUR) return 1;
+    if (now - at < 24 * HOUR) return 2;
+    if (now - at < 7 * 24 * HOUR) return 3;
+    return 4;
   };
-  const sections: Entry[][] = [[], [], [], []];
+  const sections: Entry[][] = [[], [], [], [], []];
   const groups = new Map<string, ProjectView[]>();
   for (const p of state.projects) {
     if (p.group) groups.set(p.group, [...(groups.get(p.group) ?? []), p]);
@@ -56,8 +60,9 @@ export function groupProjects(state: AppState, sort: ActiveSort = 'alpha', now =
   sections[1].sort(bySort);
   sections[2].sort((a, b) => lastUse(b) - lastUse(a));
   sections[3].sort((a, b) => lastUse(b) - lastUse(a));
-  const [pinned, active, recent, older] = sections;
-  return { pinned, active, recent, older };
+  sections[4].sort((a, b) => lastUse(b) - lastUse(a));
+  const [pinned, active, recent, week, older] = sections;
+  return { pinned, active, recent, week, older };
 }
 
 /** The sort choice as stored by the sidebar (keyboard navigation follows the same order). */
@@ -74,7 +79,7 @@ const flat = (list: Entry[]) => list.flatMap((e) => (e.kind === 'project' ? [e.p
 /** Projects in the order the sidebar shows them (for keyboard navigation). */
 export function sidebarOrder(state: AppState, showOlder: boolean, sort: ActiveSort = readSort()) {
   const g = groupProjects(state, sort);
-  return [...flat(g.pinned), ...flat(g.active), ...flat(g.recent), ...(showOlder ? flat(g.older) : [])];
+  return [...flat(g.pinned), ...flat(g.active), ...flat(g.recent), ...flat(g.week), ...(showOlder ? flat(g.older) : [])];
 }
 
 /** "Heidehof · App" when a project is part of a group. */
@@ -407,6 +412,7 @@ export function Sidebar(props: Props) {
         {section('Angepinnt', sections.pinned, false, !sections.active.length)}
         {section('Aktiv', sections.active, false, true)}
         {section('Letzter Tag', sections.recent, true)}
+        {section('Letzte 7 Tage', sections.week, true)}
         {sections.older.length > 0 && (
           <div className="section">
             <button className="section-title toggle" onClick={() => setShowOlder(!showOlder)}>
