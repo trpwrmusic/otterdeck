@@ -479,3 +479,89 @@
 .composer-wrap {
   background: var(--surface);
 }
+
+/* ---------- "!" commands (bash mode) ---------- */
+
+.shell-card {
+  margin: 4px 0 12px;
+  border-radius: 10px;
+  background: #0f0f11;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.shell-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--raised);
+  color: var(--muted);
+}
+.shell-cmd code {
+  flex: 1;
+  min-width: 0;
+  font: 12.5px var(--mono, ui-monospace, monospace);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.shell-run {
+  font-size: 12px;
+  color: var(--working);
+}
+.shell-card.running .shell-cmd svg {
+  animation: shell-pulse 1.2s ease-in-out infinite;
+}
+@keyframes shell-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.shell-out {
+  margin: 0;
+  padding: 10px 12px;
+  font: 12px/1.5 var(--mono, ui-monospace, monospace);
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 420px;
+  overflow: auto;
+}
+.shell-out.folded {
+  max-height: calc(1.5em * 14 + 20px);
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.shell-err {
+  color: #ff9a9a;
+}
+.shell-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--faint);
+}
+.shell-more {
+  display: block;
+  width: 100%;
+  padding: 6px 12px 8px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted);
+}
+.shell-more:hover {
+  color: var(--text);
+}
+.shell-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px 4px;
+  font-size: 12px;
+  color: var(--working);
+}
+.composer.shell-mode {
+  border-color: rgba(138, 180, 255, 0.45);
+}
+.composer.shell-mode textarea {
+  font-family: var(--mono, ui-monospace, monospace);
+}

@@ -3,6 +3,7 @@ import { ArrowUp, Brain, ChevronRight, FileText, ImageIcon, Plus, Square, Square
 import type { ChatItem, ChatServerMsg, TabView } from '../../../shared/types';
 import { api, chatUrl, usePersisted } from '../api';
 import { handleCopyClick, renderMarkdown } from './markdown';
+import { ShellCard } from './ShellCard';
 import { EditCard, isEdit, StepRow, TodoCard } from './ToolCard';
 import { PromptCard } from './PromptCard';
 import { formatSize, ModeMenu, type Attachment } from './Composer';
@@ -101,6 +102,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   const [truncated, setTruncated] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = usePersisted(`otter.draft.${tab.id}`, '');
+  const shellMode = draft.trimStart().startsWith('!');
   /** Sent but not yet in the transcript; shown right away. */
   const [pending, setPending] = useState<string[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
@@ -169,7 +171,9 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   // Drop optimistic messages once Claude's transcript has them.
   useEffect(() => {
     if (!pending.length) return;
-    const sent = new Set(items.filter((i) => i.k === 'user').map((i) => (i as any).text.trim()));
+    const sent = new Set(
+      items.flatMap((i) => (i.k === 'user' ? [i.text.trim()] : i.k === 'shell' ? ['!' + i.cmd.trim(), '! ' + i.cmd.trim()] : [])),
+    );
     const left = pending.filter((p) => !sent.has(p.trim()));
     if (left.length !== pending.length) setPending(left);
   }, [items, pending]);
@@ -219,6 +223,20 @@ export function ChatView({ tab, onShowTerminal }: Props) {
     const ready = files.filter((f) => f.path);
     const words = draft.trim();
     if ((!words && !ready.length) || uploading) return;
+    // A "!" command runs in Claude Code's bash mode; attachments don't belong to it.
+    if (words.startsWith('!')) {
+      if (words.length < 2) return;
+      setPending((p) => [...p, words]);
+      setDraft('');
+      stick.current = true;
+      try {
+        await api.typeToTab(tab.id, words);
+      } catch {
+        setPending((p) => p.filter((x) => x !== words));
+        setDraft(words);
+      }
+      return;
+    }
     // Claude reads the attached files itself; the paths go into the message as plain text.
     const text = ready.length
       ? `${words || 'Sieh dir bitte die Anhänge an.'}\n\nAnhänge:\n${ready.map((f) => `- ${f.path}`).join('\n')}`
@@ -297,15 +315,20 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               )}
               {b.k === 'item' && b.item.k === 'thinking' && <Thinking text={b.item.text} />}
               {b.k === 'item' && b.item.k === 'note' && <div className="chat-note">{b.item.text}</div>}
+              {b.k === 'item' && b.item.k === 'shell' && <ShellCard cmd={b.item.cmd} out={b.item.out} err={b.item.err} />}
             </Fragment>
           ))}
-          {pending.map((p, i) => (
-            <div className="msg-user pending" key={`p${i}`}>
-              <div className="bubble">
-                <UserText text={p} />
+          {pending.map((p, i) =>
+            p.startsWith('!') ? (
+              <ShellCard key={`p${i}`} cmd={p.slice(1).trim()} out={null} err="" />
+            ) : (
+              <div className="msg-user pending" key={`p${i}`}>
+                <div className="bubble">
+                  <UserText text={p} />
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
           {running && (
             <div className="chat-status">
               <span className="mark working" style={{ width: 14, height: 14 }} />
@@ -348,7 +371,12 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             ))}
           </div>
         )}
-        <div className="composer">
+        {shellMode && (
+          <div className="shell-hint">
+            <SquareTerminal size={13} /> Shell-Befehl · läuft direkt, Claude liest die Ausgabe mit
+          </div>
+        )}
+        <div className={`composer${shellMode ? ' shell-mode' : ''}`}>
           {files.length > 0 && (
             <div className="attachments">
               {files.map((f) => (
@@ -383,7 +411,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             ref={input}
             value={draft}
             rows={1}
-            placeholder={alive ? 'Nachricht an Claude' : 'Claude läuft gerade nicht'}
+            placeholder={alive ? 'Nachricht an Claude · ! für einen Shell-Befehl' : 'Claude läuft gerade nicht'}
             disabled={!alive}
             onChange={(e) => setDraft(e.target.value)}
             onPaste={(e) => {

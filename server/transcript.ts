@@ -49,6 +49,17 @@ function userText(content: unknown): { text: string; images: number } | null {
   return text || images ? { text, images } : null;
 }
 
+/** Output of a "!" command, without terminal colours and carriage returns. */
+function shellText(s: string | undefined) {
+  return clip(
+    String(s ?? '')
+      .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/\s+$/, ''),
+    MAX_TEXT,
+  );
+}
+
 /** Your message, a short note (slash command, interruption), or machinery to leave out. */
 function classify(text: string): { kind: 'message' } | { kind: 'note'; text: string } | { kind: 'skip' } {
   const t = text.trim();
@@ -69,6 +80,7 @@ export class TranscriptTail {
   private items = new Map<string, ChatItem>();
   private order: string[] = [];
   private toolIndex = new Map<string, string>(); // tool_use_id → item id
+  private lastShell: string | null = null; // the "!" command waiting for its output
   truncated = false;
 
   constructor(readonly file: string) {}
@@ -193,6 +205,22 @@ export class TranscriptTail {
       }
       const u = userText(content);
       if (!u) return [];
+      // "!" commands: <bash-input> first, then <bash-stdout>/<bash-stderr> as a second entry.
+      const input = u.text.match(/^\s*<bash-input>([\s\S]*?)<\/bash-input>\s*$/);
+      if (input) {
+        this.lastShell = j.uuid;
+        return [this.put({ id: j.uuid, k: 'shell', cmd: input[1].trim(), out: null, err: '', at })];
+      }
+      const stdout = u.text.match(/<bash-stdout>([\s\S]*?)<\/bash-stdout>/);
+      const stderr = u.text.match(/<bash-stderr>([\s\S]*?)<\/bash-stderr>/);
+      if (stdout || stderr) {
+        const prev = this.lastShell ? this.items.get(this.lastShell) : undefined;
+        const out = shellText(stdout?.[1]);
+        const err = shellText(stderr?.[1]);
+        this.lastShell = null;
+        if (prev && prev.k === 'shell') return [this.put({ ...prev, out, err })];
+        return [this.put({ id: j.uuid, k: 'shell', cmd: '', out, err, at })];
+      }
       const c = classify(u.text);
       if (c.kind === 'skip') return [];
       if (c.kind === 'note') return [this.put({ id: j.uuid, k: 'note', text: c.text, at })];

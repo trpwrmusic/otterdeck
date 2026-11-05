@@ -292,7 +292,9 @@ export type ChatItem =
   | { id: string; k: 'text'; text: string; at: number }
   | { id: string; k: 'thinking'; text: string; at: number }
   | { id: string; k: 'tool'; name: string; summary: string; input: Record<string, unknown>; result: ToolResult | null; at: number }
-  | { id: string; k: 'note'; text: string; at: number };
+  | { id: string; k: 'note'; text: string; at: number }
+  /** A command run with "!" (Claude Code's bash mode): Claude sees it and its output. out = null while it runs. */
+  | { id: string; k: 'shell'; cmd: string; out: string | null; err: string; at: number };
 
 export type ChatServerMsg =
   | { t: 'reset'; items: ChatItem[]; truncated: boolean }

@@ -347,6 +347,13 @@ class Tab {
    */
   async type(text: string) {
     if (!this.proc) return false;
+    // "!" switches Claude Code into bash mode; it has to arrive on its own, before the command.
+    if (text.startsWith('!')) {
+      this.proc.write('!');
+      await new Promise((r) => setTimeout(r, 150));
+      text = text.slice(1).replace(/^\s+/, '');
+      if (!text) return true;
+    }
     const lines = text.replace(/\r\n/g, '\n').split('\n');
     for (let i = 0; i < lines.length; i++) {
       for (let j = 0; j < lines[i].length; j += 48) {
