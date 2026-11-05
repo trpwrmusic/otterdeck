@@ -43,7 +43,7 @@ export function ProjectPane({ project, tabs, accounts, activeTab, onActivate }: 
   const lastClaude = useRef<string | null>(null);
   /** Per Claude tab: terminal or chat. */
   const [tabViews, setTabViews] = usePersisted<Record<string, 'chat' | 'terminal'>>('otter.tabViews', {});
-  const [defaultView] = usePersisted<'chat' | 'terminal'>('otter.defaultView', 'terminal');
+  const [defaultView] = usePersisted<'chat' | 'terminal'>('otter.defaultView', 'chat');
 
   const currentView = views.find((v) => v.id === activeTab) ?? null;
   const current = currentView ? null : tabs.find((t) => t.id === activeTab) ?? (activeTab?.startsWith('view:') ? tabs[0] ?? null : null);
