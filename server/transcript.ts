@@ -211,7 +211,7 @@ export class TranscriptTail {
       const input = u.text.match(/^\s*<bash-input>([\s\S]*?)<\/bash-input>\s*$/);
       if (input) {
         this.lastShell = j.uuid;
-        return [this.put({ id: j.uuid, k: 'shell', cmd: input[1].trim(), out: null, err: '', at })];
+        return [this.put({ id: j.uuid, k: 'shell', cmd: shellText(input[1]).trim(), out: null, err: '', at })];
       }
       const stdout = u.text.match(/<bash-stdout>([\s\S]*?)<\/bash-stdout>/);
       const stderr = u.text.match(/<bash-stderr>([\s\S]*?)<\/bash-stderr>/);
