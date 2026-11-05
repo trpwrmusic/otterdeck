@@ -55,6 +55,8 @@ function shellText(s: string | undefined) {
     String(s ?? '')
       .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
       .replace(/\r\n?/g, '\n')
+      // Claude Code stores the output HTML-escaped ("HEAD -&gt; master").
+      .replace(/&(lt|gt|quot|#39|amp);/g, (_, e) => ({ lt: '<', gt: '>', quot: '"', '#39': "'", amp: '&' })[e as string]!)
       .replace(/\s+$/, ''),
     MAX_TEXT,
   );
