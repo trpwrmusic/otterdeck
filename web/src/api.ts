@@ -56,6 +56,10 @@ export function pickImage(): Promise<File | null> {
 }
 
 export const api = {
+  setServer: (url: string) => call('POST', '/api/server', { url }),
+  connectServer: (projectId: string) => call<{ tabId: string }>('POST', '/api/server/connect', { projectId }),
+  handOff: (tabId: string, prompt: string) => call('POST', `/api/tabs/${tabId}/handoff`, { prompt }),
+  bringBack: (id: string) => call<{ tabId: string | null; conflict: boolean; branch: string }>('POST', '/api/handoffs/return', { id }),
   setRemote: (enabled: boolean) => call('POST', '/api/remote', { enabled }),
   setProjectIcon: (id: string, file: File) => putImage(`/api/projects/${id}/icon`, file),
   clearProjectIcon: (id: string) => call('DELETE', `/api/projects/${id}/icon`),
@@ -134,6 +138,7 @@ export function useAppState() {
           setState(msg.state);
         }
         else if (msg.t === 'changes') fileChanges.dispatchEvent(new CustomEvent('changes', { detail: msg.projectId }));
+        else if (msg.t === 'toast') window.dispatchEvent(new CustomEvent('otter:toast', { detail: msg.text }));
       };
       ws.onclose = () => {
         if (stop) return;

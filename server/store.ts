@@ -14,8 +14,24 @@ export interface ProjectRecord {
   account?: string;
   /** Own icon file in ICON_DIR (otherwise one found in the folder). */
   icon?: string;
+  /** Set on the server: this project is a task handed over from the laptop. */
+  handoff?: { id: string; base: string; from: string };
   addedAt: number;
   lastUsed: number;
+}
+
+export interface HandoffRecord {
+  id: string;
+  /** Laptop project it came from. */
+  projectId: string;
+  title: string;
+  prompt: string;
+  /** Commit with the state handed over (branch otter/<id>). */
+  base: string;
+  serverProjectId: string;
+  serverTabId: string;
+  createdAt: number;
+  returnedAt?: number;
 }
 
 export interface TabRecord {
@@ -27,6 +43,10 @@ export interface TabRecord {
   pendingPrompt?: string;
   /** Claude config dir the session belongs to. */
   account?: string;
+  /** Permission mode Claude starts in (server tasks take over the laptop's mode). */
+  mode?: string;
+  /** This tab runs `claude setup-token` (connecting a server), not a shell. */
+  setupToken?: boolean;
   createdAt: number;
 }
 
@@ -38,6 +58,10 @@ interface Data {
   activityV2?: boolean;
   /** Icon file (in ICON_DIR) per group name. */
   groupIcons?: Record<string, string>;
+  /** Laptop: the server tasks are handed to (one server for now). */
+  server?: { url: string; tokenAt?: number };
+  /** Laptop: tasks handed to the server. */
+  handoffs?: HandoffRecord[];
 }
 
 const FILE = path.join(DATA_DIR, 'state.json');
@@ -45,7 +69,7 @@ const FILE = path.join(DATA_DIR, 'state.json');
 function load(): Data {
   try {
     const d = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [], activityV2: d.activityV2, groupIcons: d.groupIcons ?? {} };
+    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [], activityV2: d.activityV2, groupIcons: d.groupIcons ?? {}, server: d.server, handoffs: d.handoffs ?? [] };
   } catch {
     return { version: 1, projects: [], tabs: [] };
   }

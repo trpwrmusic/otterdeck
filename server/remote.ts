@@ -9,9 +9,15 @@ import type { RemoteView } from '../shared/types.ts';
 // identity (Tailscale-User-Login). Requests coming that way are accepted only from the owner of this
 // machine; nothing is reachable from the internet (that would be Funnel, which we never turn on).
 
-const TAILSCALE = ['C:\\Program Files\\Tailscale\\tailscale.exe', 'C:\\Program Files (x86)\\Tailscale\\tailscale.exe'].find((f) =>
-  fs.existsSync(f),
-);
+const TAILSCALE =
+  process.env.OTTER_TAILSCALE ||
+  (process.platform === 'win32'
+    ? ['C:\\Program Files\\Tailscale\\tailscale.exe', 'C:\\Program Files (x86)\\Tailscale\\tailscale.exe'].find((f) => fs.existsSync(f))
+    : ['/usr/bin/tailscale', '/usr/local/bin/tailscale'].find((f) => fs.existsSync(f)));
+/** A tailscaled running without root has its own socket (e.g. on mc-panel). */
+const SOCKET = process.env.OTTER_TAILSCALE_SOCKET ? ['--socket', process.env.OTTER_TAILSCALE_SOCKET] : [];
+/** HTTPS port inside the tailnet: 443 on the PC; on a server where 443 is taken (Funnel) e.g. 4747. */
+const SERVE_PORT = Number(process.env.OTTER_SERVE_PORT || 443);
 
 interface Info {
   installed: boolean;
@@ -31,14 +37,14 @@ let info: Info = { installed: !!TAILSCALE, running: false, host: null, owner: nu
 function run(args: string[], timeout = 8000): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!TAILSCALE) return reject(new Error('Tailscale ist nicht installiert.'));
-    execFile(TAILSCALE, args, { timeout, windowsHide: true }, (err, stdout, stderr) => {
+    execFile(TAILSCALE, [...SOCKET, ...args], { timeout, windowsHide: true }, (err, stdout, stderr) => {
       if (err) reject(new Error((stderr || stdout || err.message).trim()));
       else resolve(stdout);
     });
   });
 }
 
-const target = `http://127.0.0.1:${PORT}`;
+const target = 'http://127.0.0.1:' + PORT;
 
 export async function refreshRemote(): Promise<Info> {
   if (!TAILSCALE) return info;
@@ -51,7 +57,7 @@ export async function refreshRemote(): Promise<Info> {
     let serving = false;
     try {
       const sv = await run(['serve', 'status', '--json']);
-      serving = sv.includes(`127.0.0.1:${PORT}`) || sv.includes(`localhost:${PORT}`);
+      serving = sv.includes('127.0.0.1:' + PORT) || sv.includes('localhost:' + PORT);
     } catch {}
     info = {
       installed: true,
@@ -74,14 +80,20 @@ export async function setRemote(on: boolean) {
   await refreshRemote();
   if (!info.running) throw new Error('Tailscale läuft nicht. Starte Tailscale und melde dich an.');
   // --bg keeps the setting after Otterdeck or the PC restarts; "off" removes exactly this entry.
-  if (on) await run(['serve', '--bg', '--https=443', target], 20_000);
-  else await run(['serve', '--https=443', 'off'], 20_000);
+  // Never Funnel: that would put Otterdeck on the internet.
+  if (on) await run(['serve', '--bg', '--https=' + SERVE_PORT, target], 20_000);
+  else await run(['serve', '--https=' + SERVE_PORT, 'off'], 20_000);
   return refreshRemote();
 }
 
 // ---------- requests that came through tailscale serve ----------
 
-const hostOnly = (h: string | undefined) => String(h ?? '').replace(/:443$/, '').toLowerCase();
+const hostOnly = (h: string | undefined) => {
+  const s = String(h ?? '').toLowerCase();
+  return s.endsWith(':' + SERVE_PORT) ? s.slice(0, -(':' + SERVE_PORT).length) : s;
+};
+/** Our address in the tailnet, e.g. https://mc-panel.tail….ts.net:4747 */
+export const publicUrl = () => (info.host ? 'https://' + info.host + (SERVE_PORT === 443 ? '' : ':' + SERVE_PORT) : null);
 
 /** The request came in through the tailnet address (not the local window). */
 export function isRemote(req: http.IncomingMessage) {
@@ -96,7 +108,7 @@ export function remoteAllowed(req: http.IncomingMessage, needOrigin: boolean) {
   if (addr !== '127.0.0.1' && addr !== '::1' && addr !== '::ffff:127.0.0.1') return false;
   if (String(req.headers['tailscale-user-login'] ?? '').toLowerCase() !== info.owner.toLowerCase()) return false;
   const origin = req.headers.origin;
-  if (origin) return origin === `https://${info.host}`;
+  if (origin) return origin === publicUrl();
   return !needOrigin;
 }
 
@@ -133,7 +145,7 @@ export function remoteView(): RemoteView {
     installed: info.installed,
     running: info.running,
     enabled: info.serving,
-    url: info.host ? `https://${info.host}` : null,
+    url: publicUrl(),
     owner: info.owner,
     error: info.error,
     devices: [...devices.values()].map((d) => ({ name: d.name, since: d.since })),

@@ -4,8 +4,9 @@ import http from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
-import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, UPLOAD_DIR, WEB_DIST } from './config.ts';
+import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, SERVER_MODE, UPLOAD_DIR, WEB_DIST } from './config.ts';
 import { recordUsage, usageViews } from './usage.ts';
+import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
 import { isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
@@ -119,6 +120,8 @@ function state(): AppState {
     groupIcons: { ...(data.groupIcons ?? {}) },
     usage: usageViews(),
     remote: remoteView(),
+    server: serverView(),
+    serverMode: SERVER_MODE,
     version: VERSION,
     update: { ...update },
   };
@@ -299,6 +302,90 @@ const server = http.createServer(async (req, res) => {
     if (!trusted(req, method !== 'GET')) return json(res, 403, { error: 'origin' });
 
     if (url.pathname === '/api/ping') return json(res, 200, { app: 'otterdeck' });
+    // ---------- server side of "Auf Server abgeben" (handoff.ts) ----------
+    if (url.pathname === '/api/server/info') return json(res, 200, serverInfo());
+    if (url.pathname === '/api/server/token' && method === 'POST') {
+      if (!SERVER_MODE) return json(res, 400, { error: 'Nur auf dem Server.' });
+      try {
+        storeToken(String((await readBody(req)).token ?? '').trim());
+      } catch (err) {
+        return json(res, 400, { error: (err as Error).message });
+      }
+      return json(res, 200, { ok: true });
+    }
+    if (url.pathname === '/api/handoff/upload' && method === 'POST') {
+      if (!SERVER_MODE) return json(res, 400, { error: 'Nur auf dem Server.' });
+      try {
+        const size = await receiveUpload(req, url.searchParams.get('id') ?? '', url.searchParams.get('kind') ?? '');
+        return json(res, 200, { ok: true, size });
+      } catch (err) {
+        return json(res, 400, { error: (err as Error).message });
+      }
+    }
+    if (url.pathname === '/api/handoff/start' && method === 'POST') {
+      if (!SERVER_MODE) return json(res, 400, { error: 'Nur auf dem Server.' });
+      try {
+        const r = await startTask(await readBody(req));
+        events.emit('change');
+        return json(res, 200, r);
+      } catch (err) {
+        return json(res, 400, { error: (err as Error).message });
+      }
+    }
+    if (parts[1] === 'handoff' && parts[2] && parts[3]) {
+      const id = parts[2];
+      try {
+        if (parts[3] === 'result' && method === 'GET') {
+          const { file, done } = await resultBundle(id);
+          res.writeHead(200, { 'content-type': 'application/octet-stream', 'x-otter-done': done });
+          return fs.createReadStream(file).pipe(res);
+        }
+        if (parts[3] === 'transcript' && method === 'GET') {
+          const t = resultTranscript(id);
+          if (!t) return json(res, 404, { error: 'Kein Chat.' });
+          res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'x-otter-session': t.sessionId });
+          return fs.createReadStream(t.file).pipe(res);
+        }
+        if (parts[3] === 'close' && method === 'POST') {
+          closeTask(id);
+          events.emit('change');
+          return json(res, 200, { ok: true });
+        }
+      } catch (err) {
+        return json(res, 409, { error: (err as Error).message });
+      }
+    }
+
+    // ---------- laptop side ----------
+    if (url.pathname === '/api/server' && method === 'POST') {
+      try {
+        const info = await setServer(String((await readBody(req)).url ?? ''));
+        events.emit('change');
+        return json(res, 200, info);
+      } catch (err) {
+        return json(res, 400, { error: (err as Error).message });
+      }
+    }
+    if (url.pathname === '/api/server/connect' && method === 'POST') {
+      const body = await readBody(req);
+      const projectId = String(body.projectId ?? data.projects[0]?.id ?? '');
+      if (!data.projects.some((p) => p.id === projectId)) return json(res, 400, { error: 'Projekt fehlt.' });
+      const tabId = connectToken(projectId, (err) => {
+        events.emit('change');
+        events.emit('toast', err ? `Server verbinden ging nicht: ${err.message}` : 'Server verbunden. Claude meldet sich dort jetzt mit dem Schlüssel an.');
+      });
+      return json(res, 200, { tabId });
+    }
+    if (url.pathname === '/api/handoffs/return' && method === 'POST') {
+      try {
+        const r = await bringBack(String((await readBody(req)).id ?? ''));
+        events.emit('change');
+        return json(res, 200, r);
+      } catch (err) {
+        return json(res, 400, { error: (err as Error).message });
+      }
+    }
+
     // /api/remote – phone access over Tailscale (turning it on only from the PC itself)
     if (url.pathname === '/api/remote') {
       if (method === 'GET') {
@@ -514,7 +601,7 @@ const server = http.createServer(async (req, res) => {
       if (parts[3] === 'conversations')
         return json(res, 200, conversations(p.path));
       if (parts[3] === 'reveal' && method === 'POST') {
-        spawn('explorer.exe', [p.path], { detached: true, stdio: 'ignore' }).unref();
+        if (process.platform === 'win32') spawn('explorer.exe', [p.path], { detached: true, stdio: 'ignore' }).unref();
         return json(res, 200, { ok: true });
       }
     }
@@ -537,6 +624,16 @@ const server = http.createServer(async (req, res) => {
     if (parts[1] === 'tabs' && parts[2]) {
       const id = parts[2];
       if (!tabs.has(id)) return json(res, 404, { error: 'not found' });
+      if (parts[3] === 'handoff' && method === 'POST') {
+        const body = await readBody(req);
+        try {
+          const rec = await handOff(id, String(body.prompt ?? ''), body.gitName, body.gitEmail);
+          events.emit('change');
+          return json(res, 200, rec);
+        } catch (err) {
+          return json(res, 400, { error: (err as Error).message });
+        }
+      }
       if (!parts[3] && method === 'DELETE') {
         closeTab(id);
         return json(res, 200, { ok: true });
@@ -651,6 +748,16 @@ server.on('upgrade', (req, socket, head) => {
     ws.close();
   });
 });
+
+// Short messages for every window (e.g. "Server verbunden").
+events.on('toast', (text: string) => {
+  const s = JSON.stringify({ t: 'toast', text } satisfies EventMsg);
+  for (const ws of eventClients) if (ws.readyState === ws.OPEN) ws.send(s);
+});
+
+// Laptop: status of the tasks on the server, for the sidebar.
+setInterval(() => pollServer(() => events.emit('change')), 10_000).unref();
+pollServer(() => events.emit('change'));
 
 let pushTimer: NodeJS.Timeout | null = null;
 events.on('change', () => {

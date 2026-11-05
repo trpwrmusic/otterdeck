@@ -1,12 +1,21 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import pty from 'node-pty';
+import type * as Pty from 'node-pty';
 import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket } from 'ws';
 import type { ChatServerMsg, PermissionMode, PromptView, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
-import { CLAUDE_BIN, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, PORT, SHELL_BIN, UPLOAD_DIR } from './config.ts';
+import { CLAUDE_BIN, CLAUDE_TOKEN_FILE, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, IS_WIN, PORT, SERVER_MODE, SHELL_BIN, UPLOAD_DIR } from './config.ts';
+
+// node-pty has no Linux build without a compiler; there the prebuilt fork takes over.
+const PTY_FALLBACK = '@homebridge/node-pty-prebuilt-multiarch';
+const pty: typeof Pty = await import('node-pty')
+  .then((m: any) => m.default ?? m)
+  .catch(async () => {
+    const m: any = await import(PTY_FALLBACK);
+    return m.default ?? m;
+  });
 import { HOOK_SETTINGS, describePermission, describeTool, shorten } from './hooks.ts';
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
@@ -53,7 +62,7 @@ const STRIP_ENV = new Set([
 
 class Tab {
   rec: TabRecord;
-  proc: pty.IPty | null = null;
+  proc: Pty.IPty | null = null;
   term: InstanceType<typeof Terminal> | null = null;
   ser: InstanceType<typeof SerializeAddon> | null = null;
   clients = new Set<WebSocket>();
@@ -75,6 +84,9 @@ class Tab {
   changedAt = Date.now();
   cols = 120;
   rows = 32;
+
+  /** Raw output listeners (e.g. catching the token `claude setup-token` prints). */
+  watchers = new Set<(d: string) => void>();
 
   constructor(rec: TabRecord) {
     this.rec = rec;
@@ -135,14 +147,28 @@ class Tab {
       if (path.resolve(account).toLowerCase() === path.join(HOME, '.claude').toLowerCase()) delete env.CLAUDE_CONFIG_DIR;
       else env.CLAUDE_CONFIG_DIR = account;
       shareMemory(project.path, account);
+      // On the server Claude signs in with the long-lived token instead of a login that expires.
+      if (SERVER_MODE && !env.CLAUDE_CONFIG_DIR) {
+        try {
+          const token = fs.readFileSync(CLAUDE_TOKEN_FILE, 'utf8').trim();
+          if (token) env.CLAUDE_CODE_OAUTH_TOKEN = token;
+        } catch {}
+      }
       args = ['--settings', HOOK_SETTINGS, '--add-dir', UPLOAD_DIR, '--append-system-prompt', CHAT_NOTE];
       // For tests, e.g. OTTER_CLAUDE_ARGS="--permission-mode default" to see permission prompts.
       if (process.env.OTTER_CLAUDE_ARGS) args.push(...process.env.OTTER_CLAUDE_ARGS.split(/\s+/).filter(Boolean));
+      if (this.rec.mode && /^(default|acceptEdits|plan|auto|bypassPermissions)$/.test(this.rec.mode)) args.push('--permission-mode', this.rec.mode);
       const resume = opts.resume ?? (opts.fresh ? undefined : this.rec.claudeSessionId);
       if (resume) args.push('--resume', resume);
       // A first message (e.g. review comments) starts the conversation right away.
       if (opts.prompt) args.push('--', opts.prompt);
       file = CLAUDE_BIN;
+    } else if (this.rec.setupToken) {
+      // Always the default account (~/.claude): that is the one the server works with.
+      delete env.CLAUDE_CONFIG_DIR;
+      file = CLAUDE_BIN;
+      args = ['setup-token'];
+      this.title = 'Server verbinden';
     } else {
       file = SHELL_BIN;
       args = /powershell|pwsh/i.test(file) ? ['-NoLogo'] : [];
@@ -174,8 +200,8 @@ class Tab {
         rows: this.rows,
         cwd,
         env,
-        useConptyDll: true,
-      } as pty.IWindowsPtyForkOptions);
+        ...(IS_WIN ? { useConptyDll: true } : {}),
+      } as Pty.IWindowsPtyForkOptions);
     } catch (err) {
       this.term.write(`\r\n\x1b[31mKonnte ${path.basename(file)} nicht starten: ${(err as Error).message}\x1b[0m\r\n`);
       this.setStatus('exited');
@@ -194,6 +220,7 @@ class Tab {
       if (this.proc !== proc) return;
       this.term?.write(d, () => this.scheduleDetect());
       this.broadcast({ t: 'out', d });
+      for (const w of this.watchers) w(d);
     });
     proc.onExit(({ exitCode }) => {
       if (this.proc !== proc) return;
@@ -565,8 +592,15 @@ export function touchProject(id: string) {
 }
 
 /** account: the chat's own account (resuming) or a one-off choice; otherwise the project's default for new chats. */
-export function createTab(projectId: string, kind: 'claude' | 'shell', resume?: string, prompt?: string, account?: string) {
-  const rec: TabRecord = { id: newId(), projectId, kind, createdAt: Date.now() };
+export function createTab(
+  projectId: string,
+  kind: 'claude' | 'shell',
+  resume?: string,
+  prompt?: string,
+  account?: string,
+  extra: Pick<TabRecord, 'mode' | 'setupToken'> = {},
+) {
+  const rec: TabRecord = { id: newId(), projectId, kind, createdAt: Date.now(), ...extra };
   if (kind === 'claude' && account) rec.account = account;
   if (resume) rec.claudeSessionId = resume;
   data.tabs.push(rec);

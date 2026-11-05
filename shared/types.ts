@@ -79,6 +79,30 @@ export interface ProjectView {
   icon: string | null;
 }
 
+/** A task handed from the laptop to the server, as the laptop sees it. */
+export interface HandoffView {
+  id: string;
+  projectId: string;
+  title: string;
+  prompt: string;
+  createdAt: number;
+  /** Status of the Claude tab on the server (null = unknown, server not reachable). */
+  status: TabStatus | string | null;
+  question: string | null;
+  serverTabId: string;
+  serverProjectId: string;
+}
+
+/** Laptop: the server tasks can be handed to. */
+export interface ServerView {
+  url: string;
+  /** When the long-lived Claude token was sent (null = not yet). */
+  tokenAt: number | null;
+  reachable: boolean | null;
+  checkedAt: number;
+  handoffs: HandoffView[];
+}
+
 /** Phone access over Tailscale. */
 export interface RemoteView {
   installed: boolean;
@@ -124,6 +148,10 @@ export interface AppState {
   groupIcons: Record<string, string>;
   usage: UsageView[];
   remote: RemoteView;
+  /** Laptop: connected server and the tasks running there (null = none set up). */
+  server: ServerView | null;
+  /** This Otterdeck is itself a server (Linux, OTTER_SERVER=1). */
+  serverMode: boolean;
   /** This window is the remote page (phone), not the PC. */
   isRemote?: boolean;
   /** Code version the server runs; the window reloads when it changes. */
@@ -247,7 +275,7 @@ export type ChatServerMsg =
   | { t: 'upsert'; items: ChatItem[] };
 
 /** Messages on /ws/events */
-export type EventMsg = { t: 'state'; state: AppState } | { t: 'changes'; projectId: string };
+export type EventMsg = { t: 'state'; state: AppState } | { t: 'changes'; projectId: string } | { t: 'toast'; text: string };
 
 /** Messages on /ws/term */
 export type TermClientMsg =

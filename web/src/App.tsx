@@ -284,6 +284,10 @@ export function App() {
         notifyPermission={permission}
         onEnableNotifications={() => Notification.requestPermission().then(setPermission)}
         onPalette={() => setPalette(true)}
+        onOpenTab={(pid, tid) => {
+          selectProject(pid);
+          if (tid) setTimeout(() => activate(pid, tid), 400);
+        }}
         onJump={(status) => {
           // The oldest one first, and a different one than you're looking at when there are several.
           const list = state.tabs
@@ -321,6 +325,8 @@ export function App() {
           usage={state.usage ?? []}
           remote={state.remote}
           isRemote={!!state.isRemote}
+          server={state.server}
+          serverMode={state.serverMode}
           activeTab={activeTab}
           onActivate={(id) => activate(project.id, id)}
         />

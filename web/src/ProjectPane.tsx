@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
-import type { AccountView, RemoteView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
+import { CloudUpload, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
+import type { AccountView, RemoteView, ServerView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
 import { ContextMenu, Kbd, ProjectAvatar, StatusMark } from './bits';
 import { ChangesPanel } from './ChangesPanel';
 import { UsageCard } from './UsageCard';
 import { RemoteCard } from './RemoteCard';
+import { HandoffDialog, ServerCard } from './ServerParts';
 import { COMMENTS_LEAD, DiffView, FileView, formatComments, type ReviewComment } from './DiffView';
 import { TerminalView } from './TerminalView';
 import { ChatView } from './chat/ChatView';
@@ -25,6 +26,8 @@ interface Props {
   usage: UsageView[];
   remote?: RemoteView;
   isRemote?: boolean;
+  server?: ServerView | null;
+  serverMode?: boolean;
   activeTab: string | null; // null = start page
   onActivate: (tabId: string | null) => void;
 }
@@ -39,7 +42,8 @@ function tabAttention(t: TabView) {
 const RUNNING = new Set(['starting', 'ready', 'working', 'waiting', 'done']);
 const fileName = (p: string) => p.split('/').pop() ?? p;
 
-export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, activeTab, onActivate }: Props) {
+export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, server, serverMode, activeTab, onActivate }: Props) {
+  const [handoffTab, setHandoffTab] = useState<string | null>(null);
   const [views, setViews] = usePersisted<ViewTab[]>(`otter.views.${project.id}`, []);
   const [comments, setComments] = usePersisted<ReviewComment[]>(`otter.comments.${project.id}`, []);
   const [panelOpen, setPanelOpen] = usePersisted('otter.panel', true);
@@ -159,6 +163,11 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
                 Chat
               </button>
             </div>
+          )}
+          {current?.kind === 'claude' && !currentView && server?.tokenAt && !serverMode && (
+            <button className="btn small" onClick={() => setHandoffTab(current.id)} title="Auf Server abgeben: Claude macht dort weiter, du kannst den Laptop zuklappen">
+              <CloudUpload size={15} /> Auf Server
+            </button>
           )}
           <button className="btn small" onClick={() => open('shell')} title="Shell öffnen (Strg+Umschalt+^)">
             <SquareTerminal size={15} /> Shell
@@ -294,6 +303,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
           </div>
         </div>
 
+        {handoffTab && <HandoffDialog tabId={handoffTab} onClose={() => setHandoffTab(null)} />}
         {panelOpen && (
           <ChangesPanel
             project={project}
@@ -309,7 +319,8 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
                 accounts={accounts}
                 usage={usage}
               />
-              {remote && <RemoteCard remote={remote} isRemote={!!isRemote} />}
+              {remote && !serverMode && <RemoteCard remote={remote} isRemote={!!isRemote} />}
+              {!serverMode && !isRemote && <ServerCard server={server ?? null} projectId={project.id} onActivate={(id) => setTimeout(() => onActivate(id), 300)} />}
               </>
             }
           />

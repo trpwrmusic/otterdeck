@@ -46,5 +46,8 @@
   "private": true,
   "bin": {
     "otter": "bin/otter.mjs"
+  },
+  "optionalDependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.14.1"
   }
 }

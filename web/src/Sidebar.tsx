@@ -2,6 +2,7 @@ import { useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { BellRing, ChevronRight, MessagesSquare, Pin, Plus, RefreshCw, Search } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
 import { api, attentionOf, pickImage, usePersisted } from './api';
+import { ServerTasks } from './ServerParts';
 import { ContextMenu, ProjectAvatar, StatusMark, type MenuItem } from './bits';
 import { CHAT_MIME } from './ChatsPage';
 import { Glide } from './Glide';
@@ -111,6 +112,8 @@ interface Props {
   notifyPermission: NotificationPermission | 'unsupported';
   onEnableNotifications: () => void;
   onPalette: () => void;
+  /** Opens a tab in a project (e.g. a chat brought back from the server). */
+  onOpenTab?: (projectId: string, tabId: string | null) => void;
   /** Opens the next session in that state. */
   onJump: (status: 'waiting' | 'working' | 'done') => void;
 }
@@ -409,6 +412,7 @@ export function Sidebar(props: Props) {
           <MessagesSquare size={16} /> Chats
         </button>
       </div>
+      <ServerTasks state={state} onOpened={(pid, tid) => props.onOpenTab?.(pid, tid)} />
 
       <div className={`sidebar-scroll${dragging ? ' dragging' : ''}${movingProject ? ' moving-project' : ''}`}>
         <Glide
