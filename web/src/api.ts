@@ -60,6 +60,7 @@ export const api = {
   commands: (projectId: string, tabId: string) =>
     call<{ name: string; description: string; source: string }[]>('GET', `/api/projects/${projectId}/commands?tab=${tabId}`),
   typeToTab: (id: string, text: string) => call('POST', `/api/tabs/${id}/type`, { text }),
+  choose: (id: string, n: number, text?: string) => call('POST', '/api/tabs/' + id + '/choose', { n, text }),
   keyToTab: (id: string, key: 'allow' | 'deny' | 'stop') => call('POST', `/api/tabs/${id}/key`, { key }),
   changes: (id: string, mode: CompareMode) => call<Changes>('GET', `/api/projects/${id}/changes?mode=${mode}`),
   diff: (id: string, path: string, mode: CompareMode) =>

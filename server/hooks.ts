@@ -69,6 +69,8 @@ export function describeTool(name: string, input: any = {}): string {
     case 'TaskCreate':
     case 'TaskUpdate':
       return 'Aktualisiert die Aufgabenliste';
+    case 'AskUserQuestion':
+      return 'Stellt dir eine Frage';
     case 'Skill':
       return `Nutzt Skill ${short(input.skill, 40)}`;
     default:

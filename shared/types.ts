@@ -13,6 +13,21 @@ export type TabKind = 'claude' | 'shell';
  */
 export type TabStatus = 'dormant' | 'starting' | 'ready' | 'working' | 'waiting' | 'done' | 'exited';
 
+/** A dialog Claude shows in the terminal right now (read from the screen). */
+export interface PromptView {
+  kind: 'permission' | 'question';
+  /** Permission: the tool line ("Bash command"); question: its short header ("Farbe"). */
+  title: string | null;
+  /** Permission: what it wants to run or change, as shown. */
+  detail: string | null;
+  question: string;
+  options: { n: number; label: string; description: string }[];
+  /** The option the cursor is on. */
+  selected: number;
+  /** Number of the "Type something." option, if the question takes free text. */
+  freeText: number | null;
+}
+
 export interface TabView {
   id: string;
   projectId: string;
@@ -23,6 +38,8 @@ export interface TabView {
   activity: string | null;
   /** What Claude is asking while status is "waiting". */
   question: string | null;
+  /** The dialog on screen while waiting, with its options. */
+  prompt: PromptView | null;
   /** The prompt that started the current or last turn. */
   lastPrompt: string | null;
   /** Claude's last reply, shortened. */

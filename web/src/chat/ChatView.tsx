@@ -4,6 +4,7 @@ import type { ChatItem, ChatServerMsg, TabView } from '../../../shared/types';
 import { api, chatUrl, usePersisted } from '../api';
 import { renderMarkdown } from './markdown';
 import { EditCard, isEdit, StepRow, TodoCard } from './ToolCard';
+import { PromptCard } from './PromptCard';
 
 type Tool = Extract<ChatItem, { k: 'tool' }>;
 type Block =
@@ -227,22 +228,19 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               {tab.activity ?? 'Arbeitet …'}
             </div>
           )}
-          {tab.status === 'waiting' && (
-            <div className="ask-card">
-              <div className="ask-q">{tab.question ?? 'Claude braucht deine Antwort.'}</div>
-              <div className="ask-actions">
-                <button className="btn primary" onClick={() => api.keyToTab(tab.id, 'allow')}>
-                  Erlauben
-                </button>
-                <button className="btn" onClick={() => api.keyToTab(tab.id, 'deny')}>
-                  Ablehnen
-                </button>
-                <button className="btn quiet" onClick={onShowTerminal}>
-                  <SquareTerminal size={15} /> Im Terminal antworten
-                </button>
+          {tab.status === 'waiting' &&
+            (tab.prompt ? (
+              <PromptCard key={tab.prompt.question + tab.prompt.title} tab={tab} prompt={tab.prompt} onShowTerminal={onShowTerminal} />
+            ) : (
+              <div className="ask-card">
+                <div className="ask-q">{tab.question ?? 'Claude braucht deine Antwort.'}</div>
+                <div className="ask-actions">
+                  <button className="btn quiet" onClick={onShowTerminal}>
+                    <SquareTerminal size={15} /> Im Terminal antworten
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            ))}
         </div>
       </div>
 

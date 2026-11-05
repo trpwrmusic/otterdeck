@@ -142,7 +142,8 @@ export function Sidebar(props: Props) {
     const line = compact && !attention ? null : statusLine(p, tabs);
     const selected = p.id === selectedId && !adding;
     // A permission question can be answered right here; open questions need the chat or terminal.
-    const waitingTab = tabs.find((t) => t.status === 'waiting' && t.question?.startsWith('Möchte'));
+    const waitingTab = tabs.find((t) => t.status === 'waiting' && t.prompt?.kind === 'permission');
+    const noOption = waitingTab?.prompt?.options.find((o) => /^no\b/i.test(o.label))?.n;
     return (
       <div
         key={p.id}
@@ -178,12 +179,14 @@ export function Sidebar(props: Props) {
           {line && <div className={`row-line ${line.tone}`}>{line.text}</div>}
           {waitingTab && (
             <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-              <button className="mini primary" onClick={() => api.keyToTab(waitingTab.id, 'allow')}>
+              <button className="mini primary" onClick={() => api.choose(waitingTab.id, 1)}>
                 Erlauben
               </button>
-              <button className="mini" onClick={() => api.keyToTab(waitingTab.id, 'deny')}>
-                Ablehnen
-              </button>
+              {noOption !== undefined && (
+                <button className="mini" onClick={() => api.choose(waitingTab.id, noOption)}>
+                  Ablehnen
+                </button>
+              )}
             </div>
           )}
         </div>

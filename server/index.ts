@@ -364,6 +364,12 @@ const server = http.createServer(async (req, res) => {
         const ok = await tabs.get(id)!.type(text);
         return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Der Tab läuft gerade nicht.' });
       }
+      if (parts[3] === 'screen') return json(res, 200, tabs.get(id)!.screen());
+      if (parts[3] === 'choose' && method === 'POST') {
+        const body = await readBody(req);
+        const ok = await tabs.get(id)!.choose(Number(body.n), typeof body.text === 'string' ? body.text : undefined);
+        return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Gerade ist keine Frage offen.' });
+      }
       if (parts[3] === 'key' && method === 'POST') {
         const body = await readBody(req);
         const key = body.key === 'allow' ? 'allow' : body.key === 'deny' ? 'deny' : 'stop';

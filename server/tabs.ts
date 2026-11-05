@@ -5,12 +5,13 @@ import pty from 'node-pty';
 import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket } from 'ws';
-import type { ChatServerMsg, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
+import type { ChatServerMsg, PromptView, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
 import { CLAUDE_BIN, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, PORT, SHELL_BIN } from './config.ts';
 import { HOOK_SETTINGS, describePermission, describeTool, shorten } from './hooks.ts';
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
 import { TranscriptTail } from './transcript.ts';
+import { parsePrompt, promptSummary } from './prompt.ts';
 import { data, newId, save, type ProjectRecord, type TabRecord } from './store.ts';
 
 const { Terminal } = headless as unknown as typeof import('@xterm/headless');
@@ -52,6 +53,9 @@ class Tab {
   title = '';
   activity: string | null = null;
   question: string | null = null;
+  /** The dialog on screen right now (permission or question), read from the mirror terminal. */
+  prompt: PromptView | null = null;
+  private detectTimer: NodeJS.Timeout | null = null;
   lastPrompt: string | null = null;
   lastMessage: string | null = null;
   unseen = false;
@@ -83,6 +87,7 @@ class Tab {
       status: this.status,
       activity: this.activity,
       question: this.question,
+      prompt: this.prompt,
       lastPrompt: this.lastPrompt,
       lastMessage: this.lastMessage,
       unseen: this.unseen,
@@ -174,7 +179,7 @@ class Tab {
     const proc = this.proc;
     proc.onData((d) => {
       if (this.proc !== proc) return;
-      this.term?.write(d);
+      this.term?.write(d, () => this.scheduleDetect());
       this.broadcast({ t: 'out', d });
     });
     proc.onExit(({ exitCode }) => {
@@ -315,6 +320,68 @@ class Tab {
     return true;
   }
 
+  /** The visible screen of the mirror terminal as plain lines (what you'd see in the terminal view). */
+  screen(): string[] {
+    const t = this.term;
+    if (!t) return [];
+    const buf = t.buffer.active;
+    const out: string[] = [];
+    for (let i = 0; i < t.rows; i++) out.push(buf.getLine(buf.viewportY + i)?.translateToString(true) ?? '');
+    return out;
+  }
+
+  /** Looks at the screen shortly after output settles: is a dialog up, or did it just go away? */
+  private scheduleDetect() {
+    if (this.rec.kind !== 'claude' || this.detectTimer) return;
+    this.detectTimer = setTimeout(() => {
+      this.detectTimer = null;
+      const p = parsePrompt(this.screen());
+      if (JSON.stringify(p) === JSON.stringify(this.prompt)) return;
+      this.prompt = p;
+      if (p) {
+        this.question = promptSummary(p);
+        this.setStatus('waiting');
+      } else if (this.status === 'waiting') {
+        this.question = null;
+        this.setStatus('working');
+      }
+      changed();
+    }, 120);
+  }
+
+  /**
+   * Picks option `n` of the dialog on screen by moving the cursor there and pressing Enter.
+   * With `text` (the "Type something." option) the answer is typed before Enter.
+   */
+  async choose(n: number, text?: string) {
+    const p = this.prompt;
+    if (!p || !this.proc) return false;
+    const delta = n - p.selected;
+    for (let i = 0; i < Math.abs(delta); i++) {
+      this.proc?.write(delta > 0 ? '\x1b[B' : '\x1b[A');
+      await new Promise((r) => setTimeout(r, 35));
+    }
+    await new Promise((r) => setTimeout(r, 60));
+    if (text) {
+      for (let j = 0; j < text.length; j += 48) {
+        this.proc?.write(text.slice(j, j + 48).replace(/\r?\n/g, ' '));
+        await new Promise((r) => setTimeout(r, 6));
+      }
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    this.proc?.write('\r');
+    // "No" hands control back to you; Claude won't report a finished turn for it.
+    const label = p.options.find((o) => o.n === n)?.label ?? '';
+    if (p.kind === 'permission' && /^no\b/i.test(label)) {
+      this.prompt = null;
+      this.question = null;
+      this.setStatus('ready');
+      changed();
+    }
+    touchProject(this.rec.projectId);
+    return true;
+  }
+
   /** Answers Claude's prompts: allow = Enter (first option), deny/stop = Esc. */
   key(name: 'allow' | 'deny' | 'stop') {
     if (!this.proc) return false;
@@ -416,6 +483,11 @@ class Tab {
         break;
       default:
         return;
+    }
+    // A dialog on screen wins over a late hook: Claude is waiting until it's gone.
+    if (this.prompt && event !== 'Stop' && event !== 'SessionEnd') {
+      this.question = promptSummary(this.prompt);
+      this.setStatus('waiting');
     }
     changed();
   }
