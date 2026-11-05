@@ -67,6 +67,8 @@ export interface ProjectView {
   displayName: string;
   pinned: boolean;
   lastUsed: number;
+  /** Newest chat transcript in this project, any account (ms), or null without chats. */
+  lastChat: number | null;
   branch: string | null;
   exists: boolean;
   /** Group it belongs to, e.g. "Heidehof" for the app and the website (null = on its own). */

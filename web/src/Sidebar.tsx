@@ -16,7 +16,7 @@ export type ActiveSort = 'alpha' | 'recent';
 
 /** When something last happened in a project's chats: your input, or Claude working, asking or finishing. */
 function lastActivity(state: AppState, p: ProjectView) {
-  let t = p.lastUsed;
+  let t = Math.max(p.lastUsed, p.lastChat ?? 0);
   for (const tab of state.tabs) if (tab.projectId === p.id && tab.kind === 'claude' && tab.status !== 'dormant') t = Math.max(t, tab.changedAt);
   return t;
 }
@@ -25,8 +25,11 @@ function lastActivity(state: AppState, p: ProjectView) {
 export function groupProjects(state: AppState, sort: ActiveSort = 'alpha', now = Date.now()) {
   const tabsOf = (p: ProjectView) => state.tabs.filter((t) => t.projectId === p.id);
   const activity = new Map(state.projects.map((p) => [p.id, lastActivity(state, p)]));
-  const rank = (p: ProjectView) =>
-    p.pinned ? 0 : attentionOf(tabsOf(p)) || now - p.lastUsed < 6 * HOUR ? 1 : now - p.lastUsed < 24 * HOUR ? 2 : 3;
+  // Sections go by real activity: a chat or your use, not when a project was added.
+  const rank = (p: ProjectView) => {
+    const at = activity.get(p.id)!;
+    return p.pinned ? 0 : attentionOf(tabsOf(p)) || now - at < 6 * HOUR ? 1 : now - at < 24 * HOUR ? 2 : 3;
+  };
   const sections: Entry[][] = [[], [], [], []];
   const groups = new Map<string, ProjectView[]>();
   for (const p of state.projects) {
@@ -42,7 +45,7 @@ export function groupProjects(state: AppState, sort: ActiveSort = 'alpha', now =
   }
   // Pinned and active: A–Z keeps rows still while you work, "recent" puts the latest chat on top.
   // The quieter sections always go by last use.
-  const lastUse = (e: Entry) => (e.kind === 'project' ? e.p.lastUsed : Math.max(...e.projects.map((p) => p.lastUsed)));
+  const lastUse = (e: Entry) => (e.kind === 'project' ? activity.get(e.p.id)! : Math.max(...e.projects.map((p) => activity.get(p.id)!)));
   const latest = (e: Entry) => (e.kind === 'project' ? activity.get(e.p.id)! : Math.max(...e.projects.map((p) => activity.get(p.id)!)));
   const label = (e: Entry) => (e.kind === 'project' ? e.p.displayName : e.name);
   const bySort = (a: Entry, b: Entry) => (sort === 'recent' ? latest(b) - latest(a) : label(a).localeCompare(label(b), 'de'));

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
 import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, PORT, UPLOAD_DIR, WEB_DIST } from './config.ts';
-import { allChats, attachChat, conversations, listAccounts, slashCommands, suggestions } from './claudeData.ts';
+import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
 import { shareMemory } from './memory.ts';
@@ -64,6 +64,27 @@ setInterval(pollBranches, 4000);
 let accounts = listAccounts();
 setInterval(() => (accounts = listAccounts()), 60_000);
 
+// ---------- when each project last had a chat ----------
+// The newest transcript in the project's folder, across all accounts. Polled, not watched: cheap stats.
+
+const lastChats = new Map<string, number>();
+function pollLastChats() {
+  let diff = false;
+  for (const p of data.projects) {
+    const t = lastChatAt(p.path);
+    if ((lastChats.get(p.id) ?? null) !== t) {
+      if (t === null) lastChats.delete(p.id);
+      else lastChats.set(p.id, t);
+      diff = true;
+    }
+  }
+  if (diff) events.emit('change');
+}
+// Projects that were only added, never used, don't count as "just used".
+for (const p of data.projects) if (p.lastUsed === p.addedAt) p.lastUsed = 0;
+pollLastChats();
+setInterval(pollLastChats, 20_000);
+
 function projectView(p: (typeof data.projects)[number]): ProjectView {
   return {
     id: p.id,
@@ -72,6 +93,7 @@ function projectView(p: (typeof data.projects)[number]): ProjectView {
     displayName: p.name || path.basename(p.path) || p.path,
     pinned: !!p.pinned,
     lastUsed: p.lastUsed,
+    lastChat: lastChats.get(p.id) ?? null,
     branch: branches.get(p.id) ?? null,
     exists: fs.existsSync(p.path),
     account: p.account ?? null,
@@ -317,7 +339,8 @@ const server = http.createServer(async (req, res) => {
       const existing = data.projects.find((p) => samePath(p.path, dir));
       if (existing) return json(res, 200, { id: existing.id });
       const now = Date.now();
-      const rec = { id: newId(), path: dir, addedAt: now, lastUsed: now };
+      // lastUsed stays 0 until the project is really used (a prompt, typing in a tab, opening a tab).
+      const rec = { id: newId(), path: dir, addedAt: now, lastUsed: 0 };
       data.projects.push(rec);
       branches.set(rec.id, readBranch(dir));
       save();

@@ -234,6 +234,9 @@ export function attachChat(src: { account: string; dir: string; sessionId: strin
   if (path.resolve(from).toLowerCase() === path.resolve(to).toLowerCase() || fs.existsSync(to)) return { copied: false };
   fs.mkdirSync(toDir, { recursive: true });
   fs.copyFileSync(from, to);
+  // Keep the original's date: a copy is not a new chat.
+  const st = fs.statSync(from);
+  fs.utimesSync(to, st.atime, st.mtime);
   // Subagent transcripts and tool results live in a folder named after the session.
   const extra = path.join(fromDir, src.sessionId);
   if (fs.existsSync(extra)) fs.cpSync(extra, path.join(toDir, src.sessionId), { recursive: true });
@@ -345,4 +348,15 @@ export function slashCommands(projectPath: string, accountDir: string): SlashCom
   ];
   const seen = new Set<string>();
   return all.filter((c) => !seen.has(c.name) && seen.add(c.name));
+}
+
+/** When a chat in this folder last changed (newest transcript, any account), or null. */
+export function lastChatAt(projectPath: string): number | null {
+  const enc = encodeProjectDir(projectPath);
+  let newest: number | null = null;
+  for (const a of listAccounts()) {
+    const f = jsonlFiles(path.join(a.dir, 'projects', enc))[0];
+    if (f && (newest === null || f.mtime > newest)) newest = f.mtime;
+  }
+  return newest;
 }
