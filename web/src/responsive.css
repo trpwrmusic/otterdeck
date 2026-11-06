@@ -130,3 +130,10 @@
     padding: 0 10px;
   }
 }
+
+/* Phone: no new-chat button in the header; the "+" in the tab bar opens the start page with it. */
+@media (max-width: 760px) {
+  .pane-actions .newchat {
+    display: none;
+  }
+}
