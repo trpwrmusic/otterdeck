@@ -201,7 +201,12 @@ export function ChatView({ tab, onShowTerminal }: Props) {
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [items, pending, tab.status, tab.question]);
 
-  useEffect(() => input.current?.focus(), [tab.id]);
+  // Desktop: the chat opens ready to type. Phone/tablet: no focus, or the keyboard pops up every
+  // time a chat is opened (touch screens without a mouse).
+  useEffect(() => {
+    if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) return;
+    input.current?.focus();
+  }, [tab.id]);
 
   // The box grows with what you type (wrapped lines too) and only scrolls past 240px.
   useLayoutEffect(() => {
