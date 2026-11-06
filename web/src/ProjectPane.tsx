@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { CloudUpload, MoreHorizontal, Orbit, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
+import { ArrowRightLeft, CloudUpload, MessageSquare, MoreHorizontal, Orbit, RotateCcw, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
 import type { AccountView, RemoteView, ServerView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
-import { ActionSheet, ContextMenu, Kbd, ProjectAvatar, StatusMark, type MenuItem } from './bits';
+import { ContextMenu, Dropdown, Kbd, ProjectAvatar, StatusMark } from './bits';
 import { ChangesPanel } from './ChangesPanel';
 import { UsageCard } from './UsageCard';
 import { RemoteCard } from './RemoteCard';
@@ -87,7 +87,7 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
   });
   const [accountMenu, setAccountMenu] = useState<{ x: number; y: number } | null>(null);
   /** "⋯" at the top right of a chat, and the tab whose chat goes on with another provider. */
-  const [moreMenu, setMoreMenu] = useState<{ x: number; y: number } | null>(null);
+  const [moreMenu, setMoreMenu] = useState<DOMRect | null>(null);
   const [continueFor, setContinueFor] = useState<string | null>(null);
   const multi = accounts.length > 1;
   const accountOf = (dir: string | null | undefined) => accounts.find((a) => a.dir.toLowerCase() === (dir ?? '').toLowerCase());
@@ -202,32 +202,34 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
           )}
           {current && (current.kind === 'claude' || current.kind === 'agy') && !currentView && (
             <button
-              className="icon-btn more-btn"
+              className={`icon-btn more-btn${moreMenu ? ' on' : ''}`}
+              data-dropdown-anchor
               title="Mehr"
               aria-label="Mehr"
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                setMoreMenu({ x: r.right - 250, y: r.bottom + 6 });
-              }}
+              onClick={(e) => setMoreMenu(moreMenu ? null : e.currentTarget.getBoundingClientRect())}
             >
               <MoreHorizontal size={18} />
             </button>
           )}
           {moreMenu && current && (
-            <MoreMenu
-              x={moreMenu.x}
-              y={moreMenu.y}
-              title={current.title}
+            <Dropdown
+              anchor={moreMenu}
               onClose={() => setMoreMenu(null)}
               items={[
-                { label: 'Chat mit anderem Anbieter fortsetzen …', onClick: () => setContinueFor(current.id) },
+                {
+                  label: 'Mit anderem Anbieter fortsetzen',
+                  hint: 'z. B. wenn das Limit erreicht ist',
+                  icon: <ArrowRightLeft size={16} />,
+                  onClick: () => setContinueFor(current.id),
+                },
                 {
                   label: currentMode === 'chat' ? 'Als Terminal ansehen' : 'Als Chat ansehen',
+                  icon: currentMode === 'chat' ? <SquareTerminal size={16} /> : <MessageSquare size={16} />,
                   separatorBefore: true,
                   onClick: () => setViewOf(current.id, currentMode === 'chat' ? 'terminal' : 'chat'),
                 },
-                { label: 'Sitzung neu starten', onClick: () => api.restartTab(current.id) },
-                { label: 'Tab schließen', danger: true, onClick: () => close(current) },
+                { label: 'Sitzung neu starten', icon: <RotateCcw size={16} />, onClick: () => api.restartTab(current.id) },
+                { label: 'Tab schließen', icon: <X size={16} />, danger: true, separatorBefore: true, onClick: () => close(current) },
               ]}
             />
           )}
@@ -385,11 +387,6 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
       </div>
     </main>
   );
-}
-
-/** "⋯": a dropdown at the button with a mouse, a sheet from the bottom on a phone. */
-function MoreMenu({ x, y, title, items, onClose }: { x: number; y: number; title: string; items: MenuItem[]; onClose: () => void }) {
-  return window.matchMedia('(max-width: 760px)').matches ? <ActionSheet title={title} items={items} onClose={onClose} /> : <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
 }
 
 function StartPage({

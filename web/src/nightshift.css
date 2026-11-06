@@ -1726,56 +1726,71 @@ button.model-row:hover,
   margin-top: 6px;
 }
 
-/* ---------- phone action sheet ---------- */
+/* ---------- dropdown at a button ("⋯") ---------- */
 
-.sheet-backdrop {
+.dropdown {
   position: fixed;
-  inset: 0;
   z-index: 60;
-  display: flex;
-  align-items: flex-end;
-  padding: 0 10px calc(10px + env(safe-area-inset-bottom));
-  background: rgba(0, 0, 0, 0.5);
-  animation: fade-in 0.15s ease;
+  width: min(290px, calc(100vw - 16px));
+  padding: 6px;
+  border-radius: 14px;
+  background: #1a1a1d;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform-origin: top right;
+  animation: dropdown-in 0.16s var(--spring, ease-out);
 }
-.action-sheet {
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-4px);
+  }
+}
+.dropdown-item {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  animation: sheet-up 0.22s var(--spring, ease-out);
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  text-align: left;
+  color: var(--text);
+  font: 500 14px var(--font);
+  transition: background 0.12s;
 }
-.action-group {
+.dropdown-item:hover,
+.dropdown-item:active {
+  background: #26262b;
+}
+/* a new group: a bit of air, no line */
+.dropdown-item.sep {
+  margin-top: 8px;
+}
+.dropdown-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #232327;
+  color: var(--muted);
+}
+.dropdown-item:hover .dropdown-icon {
+  color: var(--text);
+}
+.dropdown-text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #1c1c1f;
+  gap: 1px;
 }
-.action-title {
-  padding: 14px 16px 10px;
-  text-align: center;
-  font-size: 13px;
+.dropdown-hint {
+  font-size: 12px;
+  font-weight: 400;
   color: var(--faint);
 }
-.action-item {
-  min-height: 54px;
-  padding: 0 16px;
-  font: 500 16px var(--font);
-  color: var(--text);
-  text-align: center;
-  background: #1c1c1f;
-}
-.action-group .action-item + .action-item {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.action-item:active {
-  background: #26262a;
-}
-.action-item.danger {
+.dropdown-item.danger,
+.dropdown-item.danger .dropdown-icon {
   color: #ff7b7b;
-}
-.action-cancel {
-  border-radius: 16px;
-  font-weight: 600;
 }
