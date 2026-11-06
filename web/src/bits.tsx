@@ -96,3 +96,51 @@ export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; it
 export function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="kbd">{children}</kbd>;
 }
+
+/**
+ * Phone: the same items as a ContextMenu, as a sheet from the bottom with big rows and "Abbrechen".
+ * A dropdown at a fixed spot is made for a mouse; this is made for a thumb.
+ */
+export function ActionSheet({ title, items, onClose }: { title?: string; items: MenuItem[]; onClose: () => void }) {
+  const [armed, setArmed] = useState<number | null>(null);
+  // "separatorBefore" starts a new group (its own rounded card).
+  const groups: { it: MenuItem; i: number }[][] = [];
+  items.forEach((it, i) => {
+    if (!groups.length || it.separatorBefore) groups.push([]);
+    groups[groups.length - 1].push({ it, i });
+  });
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="action-sheet" role="menu" onClick={(e) => e.stopPropagation()}>
+        {groups.map((g, gi) => (
+          <div className="action-group" key={gi}>
+            {gi === 0 && title && <div className="action-title">{title}</div>}
+            {g.map(({ it, i }) => (
+              <button
+                key={i}
+                role="menuitem"
+                className={`action-item${it.danger ? ' danger' : ''}`}
+                disabled={it.disabled}
+                onClick={() => {
+                  if (it.confirm && armed !== i) return setArmed(i);
+                  onClose();
+                  it.onClick?.();
+                }}
+              >
+                {armed === i && it.confirm ? it.confirm : it.label}
+              </button>
+            ))}
+          </div>
+        ))}
+        <button className="action-item action-cancel" onClick={onClose}>
+          Abbrechen
+        </button>
+      </div>
+    </div>
+  );
+}

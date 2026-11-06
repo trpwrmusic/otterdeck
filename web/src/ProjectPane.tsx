@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CloudUpload, MoreHorizontal, Orbit, FileCode2, FileDiff as FileDiffIcon, GitBranch, PanelRight, Plus, Sparkles, SquareTerminal, X } from 'lucide-react';
 import type { AccountView, RemoteView, ServerView, UsageView, CompareMode, Conversation, ProjectView, TabView } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
-import { ContextMenu, Kbd, ProjectAvatar, StatusMark } from './bits';
+import { ActionSheet, ContextMenu, Kbd, ProjectAvatar, StatusMark, type MenuItem } from './bits';
 import { ChangesPanel } from './ChangesPanel';
 import { UsageCard } from './UsageCard';
 import { RemoteCard } from './RemoteCard';
@@ -214,9 +214,10 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
             </button>
           )}
           {moreMenu && current && (
-            <ContextMenu
+            <MoreMenu
               x={moreMenu.x}
               y={moreMenu.y}
+              title={current.title}
               onClose={() => setMoreMenu(null)}
               items={[
                 { label: 'Chat mit anderem Anbieter fortsetzen …', onClick: () => setContinueFor(current.id) },
@@ -384,6 +385,11 @@ export function ProjectPane({ project, tabs, accounts, usage, remote, isRemote, 
       </div>
     </main>
   );
+}
+
+/** "⋯": a dropdown at the button with a mouse, a sheet from the bottom on a phone. */
+function MoreMenu({ x, y, title, items, onClose }: { x: number; y: number; title: string; items: MenuItem[]; onClose: () => void }) {
+  return window.matchMedia('(max-width: 760px)').matches ? <ActionSheet title={title} items={items} onClose={onClose} /> : <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
 }
 
 function StartPage({

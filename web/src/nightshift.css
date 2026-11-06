@@ -1725,3 +1725,57 @@ button.model-row:hover,
 .effort-chips {
   margin-top: 6px;
 }
+
+/* ---------- phone action sheet ---------- */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 10px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.5);
+  animation: fade-in 0.15s ease;
+}
+.action-sheet {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: sheet-up 0.22s var(--spring, ease-out);
+}
+.action-group {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #1c1c1f;
+}
+.action-title {
+  padding: 14px 16px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--faint);
+}
+.action-item {
+  min-height: 54px;
+  padding: 0 16px;
+  font: 500 16px var(--font);
+  color: var(--text);
+  text-align: center;
+  background: #1c1c1f;
+}
+.action-group .action-item + .action-item {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.action-item:active {
+  background: #26262a;
+}
+.action-item.danger {
+  color: #ff7b7b;
+}
+.action-cancel {
+  border-radius: 16px;
+  font-weight: 600;
+}
