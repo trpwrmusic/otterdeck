@@ -180,6 +180,18 @@ export function App() {
     }
   }, [state, permission]);
 
+  // Where the other Otterdeck is (laptop ↔ server): the service worker keeps it for its offline page.
+  const otherUrl = state ? (state.serverMode ? state.laptopUrl : state.server?.url ?? null) : null;
+  useEffect(() => {
+    if (!state || !('serviceWorker' in navigator)) return;
+    const links = {
+      self: location.origin,
+      server: state.serverMode ? state.remote?.url ?? location.origin : state.server?.url ?? null,
+      laptop: state.serverMode ? state.laptopUrl : state.remote?.url ?? null,
+    };
+    navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: 'links', links })).catch(() => {});
+  }, [state?.serverMode, state?.laptopUrl, state?.server?.url, state?.remote?.url]);
+
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -386,7 +398,16 @@ export function App() {
           )}
         </div>
       )}
-      {!connected && <div className="offline">Verbindung zu Otterdeck getrennt. Neuer Versuch läuft …</div>}
+      {!connected && (
+        <div className="offline">
+          <span>{state?.serverMode ? 'Server nicht erreichbar.' : 'Laptop nicht erreichbar.'} Neuer Versuch läuft …</span>
+          {otherUrl && (
+            <a className="offline-go" href={otherUrl}>
+              {state?.serverMode ? 'Zum Laptop' : 'Zum Server'}
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }

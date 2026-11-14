@@ -1794,3 +1794,27 @@ button.model-row:hover,
 .dropdown-item.danger .dropdown-icon {
   color: #ff7b7b;
 }
+
+/* laptop ↔ server: switch link in the sidebar, and in the "not reachable" bar */
+.nav-link {
+  text-decoration: none;
+}
+.nav-link-go {
+  margin-left: auto;
+  color: var(--faint);
+}
+.offline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.offline-go {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
+  text-decoration: none;
+}

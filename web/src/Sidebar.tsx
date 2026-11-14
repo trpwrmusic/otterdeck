@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { BellRing, ChevronRight, MessagesSquare, Pin, Plus, RefreshCw, Search } from 'lucide-react';
+import { ArrowUpRight, BellRing, ChevronRight, Laptop, MessagesSquare, Server, Pin, Plus, RefreshCw, Search } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
 import { api, attentionOf, pickImage, usePersisted } from './api';
 import { ServerTasks } from './ServerParts';
@@ -417,6 +417,12 @@ export function Sidebar(props: Props) {
         <button className={`nav-item${view === 'chats' ? ' on' : ''}`} onClick={onChats}>
           <MessagesSquare size={16} /> Chats
         </button>
+        {(state.serverMode ? state.laptopUrl : state.server?.url) && (
+          <a className="nav-item nav-link" href={(state.serverMode ? state.laptopUrl : state.server?.url) ?? '#'}>
+            {state.serverMode ? <Laptop size={16} /> : <Server size={16} />} {state.serverMode ? 'Zum Laptop' : 'Zum Server'}
+            <ArrowUpRight size={13} className="nav-link-go" />
+          </a>
+        )}
       </div>
       <ServerTasks state={state} onOpened={(pid, tid) => props.onOpenTab?.(pid, tid)} />
 

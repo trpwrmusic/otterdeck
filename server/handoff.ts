@@ -370,8 +370,16 @@ let remoteTabs = new Map<string, { status: string; title: string; question: stri
 let reachable: boolean | null = null;
 let checkedAt = 0;
 
-export async function pollServer(changed: () => void) {
+let toldLaptopUrl: string | null = null;
+
+export async function pollServer(changed: () => void, laptopUrl: string | null = null) {
   if (!data.server?.url) return;
+  // The server's app offers "Zum Laptop": tell it where we are (once per address).
+  if (laptopUrl && laptopUrl !== toldLaptopUrl) {
+    call('/api/server/laptop', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: laptopUrl }), signal: AbortSignal.timeout(8000) })
+      .then(() => (toldLaptopUrl = laptopUrl))
+      .catch(() => {});
+  }
   const open = (data.handoffs ?? []).filter((h) => !h.returnedAt);
   try {
     const st = await (await call('/api/state', { signal: AbortSignal.timeout(8000) })).json();

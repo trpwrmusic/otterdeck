@@ -128,6 +128,7 @@ function state(): AppState {
     serverMode: SERVER_MODE,
     nola: NOLA_AVAILABLE,
     agy: AGY_AVAILABLE,
+    laptopUrl: SERVER_MODE ? data.laptopUrl ?? null : null,
     version: VERSION,
     update: { ...update },
   };
@@ -316,6 +317,17 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/models') return json(res, 200, await models());
     // ---------- server side of "Auf Server abgeben" (handoff.ts) ----------
     if (url.pathname === '/api/server/info') return json(res, 200, serverInfo());
+    if (url.pathname === '/api/server/laptop' && method === 'POST') {
+      if (!SERVER_MODE) return json(res, 400, { error: 'Nur auf dem Server.' });
+      const u = String((await readBody(req)).url ?? '').replace(/\/+$/, '');
+      if (!/^https:\/\/[a-z0-9.-]+\.ts\.net(:\d+)?$/i.test(u)) return json(res, 400, { error: 'Keine Tailscale-Adresse.' });
+      if (data.laptopUrl !== u) {
+        data.laptopUrl = u;
+        save();
+        events.emit('change');
+      }
+      return json(res, 200, { ok: true });
+    }
     if (url.pathname === '/api/server/token' && method === 'POST') {
       if (!SERVER_MODE) return json(res, 400, { error: 'Nur auf dem Server.' });
       try {
@@ -861,8 +873,8 @@ events.on('toast', (text: string) => {
 });
 
 // Laptop: status of the tasks on the server, for the sidebar.
-setInterval(() => pollServer(() => events.emit('change')), 10_000).unref();
-pollServer(() => events.emit('change'));
+setInterval(() => pollServer(() => events.emit('change'), remoteView().url), 10_000).unref();
+pollServer(() => events.emit('change'), remoteView().url);
 
 let pushTimer: NodeJS.Timeout | null = null;
 events.on('change', () => {

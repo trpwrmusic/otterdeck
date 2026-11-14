@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0b0c" />
+    <title>Otterdeck · offline</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #0b0b0c;
+        color: #ececef;
+        font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      .card {
+        width: min(380px, 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        text-align: center;
+      }
+      .mark,
+      .mark svg {
+        width: 56px;
+        height: 56px;
+        opacity: 0.9;
+      }
+      h1 {
+        margin: 6px 0 0;
+        font-size: 21px;
+      }
+      p {
+        margin: 0;
+        color: #a0a0a8;
+      }
+      .actions {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      a,
+      button {
+        display: block;
+        width: 100%;
+        height: 48px;
+        border: 0;
+        border-radius: 12px;
+        font: 600 15px/48px system-ui, sans-serif;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .primary {
+        background: #ececef;
+        color: #0b0b0c;
+      }
+      .quiet {
+        background: #1c1c1f;
+        color: #ececef;
+      }
+      .hint {
+        font-size: 12.5px;
+        color: #6f6f78;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="14 15 36 34">
+  <!-- Otterdeck mark: a smooth pebble (otters use stones as tools) carrying a soft spark. White only. -->
+  <defs>
+    <mask id="spark">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <path d="M32 23C33.14 31.36 33.14 31.36 41.5 32.5C33.14 33.64 33.14 33.64 32 42C30.86 33.64 30.86 33.64 22.5 32.5C30.86 31.36 30.86 31.36 32 23Z" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M14 36c0-12 9-20 20-20 9 0 16 6 16 15 0 12-10 17-21 17-9 0-15-4-15-12z" fill="#fff" mask="url(#spark)"/>
+</svg></div>
+      <h1 id="title">Laptop ist offline</h1>
+      <p id="text">Dieses Otterdeck läuft auf deinem Laptop, und der ist gerade nicht erreichbar.</p>
+      <div class="actions">
+        <a id="go" class="primary" hidden>Zum Server</a>
+        <button class="quiet" onclick="location.reload()">Erneut versuchen</button>
+      </div>
+      <p class="hint" id="hint">Tailscale muss auf dem Handy verbunden sein.</p>
+    </div>
+    <script>
+      // Links the app left for us: { self, server, laptop } (origins).
+      caches
+        .match('/__otter/links')
+        .then((r) => (r ? r.json() : null))
+        .then((links) => {
+          if (!links) return;
+          const here = location.origin;
+          const onServer = links.server && here === new URL(links.server).origin;
+          const other = onServer ? links.laptop : links.server;
+          if (onServer) {
+            document.getElementById('title').textContent = 'Server ist offline';
+            document.getElementById('text').textContent = 'Das Server-Otterdeck ist gerade nicht erreichbar.';
+          } else {
+            document.getElementById('text').textContent =
+              'Dieses Otterdeck läuft auf deinem Laptop, und der ist gerade nicht erreichbar. Aufgaben, die du an den Server abgegeben hast, laufen dort weiter.';
+          }
+          if (other) {
+            const a = document.getElementById('go');
+            a.href = other;
+            a.textContent = onServer ? 'Zum Laptop' : 'Zum Server';
+            a.hidden = false;
+          }
+        })
+        .catch(() => {});
+    </script>
+  </body>
+</html>

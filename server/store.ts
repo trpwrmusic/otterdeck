@@ -68,6 +68,8 @@ interface Data {
   server?: { url: string; tokenAt?: number };
   /** Laptop: tasks handed to the server. */
   handoffs?: HandoffRecord[];
+  /** Server: the laptop's Otterdeck in the tailnet (for "Zum Laptop"). */
+  laptopUrl?: string;
 }
 
 const FILE = path.join(DATA_DIR, 'state.json');
@@ -75,7 +77,7 @@ const FILE = path.join(DATA_DIR, 'state.json');
 function load(): Data {
   try {
     const d = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [], activityV2: d.activityV2, groupIcons: d.groupIcons ?? {}, server: d.server, handoffs: d.handoffs ?? [] };
+    return { version: 1, projects: d.projects ?? [], tabs: d.tabs ?? [], activityV2: d.activityV2, groupIcons: d.groupIcons ?? {}, server: d.server, handoffs: d.handoffs ?? [], laptopUrl: d.laptopUrl };
   } catch {
     return { version: 1, projects: [], tabs: [] };
   }

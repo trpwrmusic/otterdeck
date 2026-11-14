@@ -197,6 +197,8 @@ export interface AppState {
   nola: boolean;
   /** The Antigravity CLI (agy) is installed: tabs with Google's agent next to Claude. */
   agy: boolean;
+  /** Server mode: where the laptop's Otterdeck is (it tells the server), for "Zum Laptop". */
+  laptopUrl: string | null;
   /** This window is the remote page (phone), not the PC. */
   isRemote?: boolean;
   /** Code version the server runs; the window reloads when it changes. */
