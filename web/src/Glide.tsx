@@ -24,7 +24,8 @@ export function Glide({ selector, className = '' }: { selector: string; watch?: 
     const x = t.left - b.left + box.scrollLeft - box.clientLeft;
     const y = t.top - b.top + box.scrollTop - box.clientTop;
     const next = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-    if (el.style.transform === next && el.style.width === `${t.width}px` && el.style.opacity === '1') return;
+    // Height too: a row grows when its second line (e.g. the branch "master") arrives later.
+    if (el.style.transform === next && el.style.width === `${t.width}px` && el.style.height === `${t.height}px` && el.style.opacity === '1') return;
     // The very first placement doesn't animate; every later one does.
     el.style.transition = first.current ? 'none' : '';
     el.style.opacity = '1';
@@ -48,7 +49,7 @@ export function Glide({ selector, className = '' }: { selector: string; watch?: 
     const ro = new ResizeObserver(later);
     ro.observe(box);
     const mo = new MutationObserver(later);
-    mo.observe(box, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    mo.observe(box, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class'] });
     return () => {
       ro.disconnect();
       mo.disconnect();

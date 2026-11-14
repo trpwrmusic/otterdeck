@@ -94,6 +94,8 @@ export interface ProjectView {
   group: string | null;
   /** Account new Claude chats in this project start with (null = default account). Existing chats keep their own. */
   account: string | null;
+  /** "Freie Chats" (chats without a project, in the home folder). */
+  free: boolean;
   /** Changes whenever the icon changes (part of the icon URL, so the picture refreshes); null = none. */
   icon: string | null;
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { ArrowUpRight, BellRing, ChevronRight, Laptop, MessagesSquare, Server, Pin, Plus, RefreshCw, Search } from 'lucide-react';
+import { ArrowUpRight, BellRing, ChevronRight, Laptop, MessageCircle, MessagesSquare, Server, Pin, Plus, RefreshCw, Search } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
 import { api, attentionOf, pickImage, usePersisted } from './api';
 import { ServerTasks } from './ServerParts';
@@ -41,6 +41,7 @@ export function groupProjects(state: AppState, sort: ActiveSort = 'alpha', now =
   const sections: Entry[][] = [[], [], [], [], []];
   const groups = new Map<string, ProjectView[]>();
   for (const p of state.projects) {
+    if (p.free) continue; // "Freie Chats" has its own entry at the top
     if (p.group) groups.set(p.group, [...(groups.get(p.group) ?? []), p]);
     else sections[rank(p)].push({ kind: 'project', p });
   }
@@ -121,6 +122,8 @@ interface Props {
 export function Sidebar(props: Props) {
   const { state, selectedId, onSelect, view, onAdd, onChats, dragging, onDropChat, notifyPermission, onEnableNotifications, onJump, onPalette } = props;
   const waiting = state.tabs.filter((t) => t.status === 'waiting').length;
+  const freeProject = state.projects.find((p) => p.free) ?? null;
+  const freeAttention = freeProject ? attentionOf(state.tabs.filter((t) => t.projectId === freeProject.id)) : null;
   const working = state.tabs.filter((t) => t.status === 'working').length;
   const done = state.tabs.filter((t) => t.status === 'done' && t.unseen).length;
   const adding = view !== 'project';
@@ -416,6 +419,14 @@ export function Sidebar(props: Props) {
       <div className="nav">
         <button className={`nav-item${view === 'chats' ? ' on' : ''}`} onClick={onChats}>
           <MessagesSquare size={16} /> Chats
+        </button>
+        <button
+          className={`nav-item${freeProject && selectedId === freeProject.id && view === 'project' ? ' on' : ''}`}
+          onClick={() => (freeProject ? onSelect(freeProject.id) : api.freeChats().then(({ id }) => onSelect(id)))}
+          title="Chats ohne Projekt, in deinem Benutzerordner"
+        >
+          <MessageCircle size={16} /> Freie Chats
+          {freeAttention && <StatusMark attention={freeAttention} size={12} />}
         </button>
         {(state.serverMode ? state.laptopUrl : state.server?.url) && (
           <a className="nav-item nav-link" href={(state.serverMode ? state.laptopUrl : state.server?.url) ?? '#'}>

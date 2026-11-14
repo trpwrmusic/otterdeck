@@ -77,6 +77,8 @@ export const api = {
   setGroupIcon: (name: string, file: File) => putImage(`/api/groups/icon?name=${encodeURIComponent(name)}`, file),
   clearGroupIcon: (name: string) => call('DELETE', `/api/groups/icon?name=${encodeURIComponent(name)}`),
   addProject: (path: string) => call<{ id: string }>('POST', '/api/projects', { path }),
+  createProject: (parent: string, name: string, git: boolean) => call<{ id: string }>('POST', '/api/projects', { create: true, parent, name, git }),
+  freeChats: () => call<{ id: string }>('POST', '/api/projects/free'),
   renameGroup: (from: string, to: string) => call('POST', '/api/groups', { from, to }),
   updateProject: (id: string, patch: { name?: string | null; pinned?: boolean; account?: string | null; group?: string | null }) =>
     call('PATCH', `/api/projects/${id}`, patch),

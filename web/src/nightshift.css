@@ -1818,3 +1818,49 @@ button.model-row:hover,
   font-weight: 600;
   text-decoration: none;
 }
+
+/* ---------- new project ---------- */
+
+.add-mode {
+  align-self: flex-start;
+  margin: 4px 0 22px;
+}
+.add-form.new-project {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.add-label {
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--faint);
+}
+.add-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.add-check input {
+  accent-color: var(--positive);
+}
+.add-target {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+.add-target code {
+  color: var(--muted);
+  font-family: var(--mono, ui-monospace, monospace);
+  word-break: break-all;
+}
+.add-create {
+  align-self: flex-start;
+  margin-top: 12px;
+}
+.nav-item .mark {
+  margin-left: auto;
+}

@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
-import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, SERVER_MODE, UPLOAD_DIR, WEB_DIST } from './config.ts';
+import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, SERVER_MODE, UPLOAD_DIR, WEB_DIST, HOME } from './config.ts';
 import { recordUsage, usageViews } from './usage.ts';
 import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
 import { AGY_AVAILABLE, agyConversations } from './agy.ts';
@@ -97,6 +97,13 @@ if (!data.activityV2) {
   save();
 }
 pollLastChats();
+
+// "Freie Chats" (chats without a project, in the home folder) exists from the start, so its entry in
+// the sidebar can open it right away. Not on a server, where there is no such home use.
+if (!SERVER_MODE && !data.projects.some((p) => p.free)) {
+  data.projects.push({ id: newId(), path: HOME, name: 'Freie Chats', free: true, addedAt: Date.now(), lastUsed: 0 });
+  save();
+}
 setInterval(pollLastChats, 20_000);
 
 function projectView(p: (typeof data.projects)[number]): ProjectView {
@@ -113,6 +120,7 @@ function projectView(p: (typeof data.projects)[number]): ProjectView {
     account: p.account ?? null,
     group: p.group ?? null,
     icon: p.icon ?? (projectIcon(p.path) ? 'auto' : null),
+    free: !!p.free,
   };
 }
 
@@ -586,16 +594,49 @@ const server = http.createServer(async (req, res) => {
     }
 
     // /api/projects
+    // "Freie Chats": one fixed project in the home folder, created on first use.
+    if (url.pathname === '/api/projects/free' && method === 'POST') {
+      let free = data.projects.find((p) => p.free);
+      if (!free) {
+        free = { id: newId(), path: HOME, name: 'Freie Chats', free: true, addedAt: Date.now(), lastUsed: 0 };
+        data.projects.push(free);
+        save();
+        events.emit('change');
+      }
+      return json(res, 200, { id: free.id });
+    }
+
     if (parts[1] === 'projects' && !parts[2] && method === 'POST') {
       const body = await readBody(req);
+      // A new project: create its folder first (and optionally a git repository).
+      if (body.create) {
+        const name = String(body.name ?? '').trim();
+        const parent = path.resolve(String(body.parent ?? '').trim());
+        if (!name || /[<>:"/\\|?*\x00-\x1f]/.test(name) || /^\.+$/.test(name) || name.length > 100)
+          return json(res, 400, { error: 'Bitte einen gültigen Ordnernamen (ohne \\ / : * ? " < > |).' });
+        if (!body.parent || !fs.existsSync(parent) || !fs.statSync(parent).isDirectory())
+          return json(res, 400, { error: 'Den Ort gibt es nicht.' });
+        const target = path.join(parent, name);
+        if (fs.existsSync(target)) return json(res, 400, { error: `„${name}“ gibt es dort schon. Füg den Ordner unter „Vorhandener Ordner“ hinzu.` });
+        fs.mkdirSync(target);
+        if (body.git) {
+          try {
+            await new Promise<void>((resolve, reject) =>
+              execFile('git', ['init', '-q', '-b', 'main'], { cwd: target, windowsHide: true }, (err) => (err ? reject(err) : resolve())),
+            );
+          } catch {}
+        }
+        body.path = target;
+      }
       const dir = path.resolve(String(body.path ?? '').trim());
       if (!body.path || !fs.existsSync(dir) || !fs.statSync(dir).isDirectory())
         return json(res, 400, { error: 'Diesen Ordner gibt es nicht.' });
       const existing = data.projects.find((p) => samePath(p.path, dir));
       if (existing) return json(res, 200, { id: existing.id });
       const now = Date.now();
-      // lastUsed stays 0 until the project is really used (a prompt, typing in a tab, opening a tab).
-      const rec = { id: newId(), path: dir, addedAt: now, lastUsed: 0 };
+      // Adding or creating a project here is using it: it goes to the top ("Aktiv"). Bulk imports
+      // (quiet: true) keep lastUsed 0, so old folders don't push ahead of real activity.
+      const rec = { id: newId(), path: dir, addedAt: now, lastUsed: body.quiet ? 0 : now };
       data.projects.push(rec);
       branches.set(rec.id, readBranch(dir));
       save();
