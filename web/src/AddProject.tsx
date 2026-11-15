@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Folder, FolderPlus, GitBranch } from 'lucide-react';
+import { Folder, FolderPlus, GitBranch, FolderGit2 } from 'lucide-react';
 import type { Suggestion } from '../../shared/types';
 import { api, timeAgo, usePersisted } from './api';
 import { Glide } from './Glide';
@@ -12,7 +12,9 @@ function FolderField({
   placeholder,
   autoFocus,
   action,
+  sep,
 }: {
+  sep: string;
   value: string;
   onChange: (v: string) => void;
   onSubmit?: () => void;
@@ -35,7 +37,7 @@ function FolderField({
     };
   }, [value]);
   const choose = (d: string) => {
-    onChange(d + '\\');
+    onChange(d + sep);
     input.current?.focus();
   };
   return (
@@ -73,7 +75,7 @@ function FolderField({
         <div className="dir-list">
           {dirs.map((d, i) => (
             <button type="button" key={d} className={`dir${i === hi ? ' hi' : ''}`} onClick={() => choose(d)}>
-              <Folder size={15} /> {d.split('\\').pop()}
+              <Folder size={15} /> {d.split(sep).pop()}
             </button>
           ))}
         </div>
@@ -82,10 +84,13 @@ function FolderField({
   );
 }
 
-export function AddProject({ onAdded }: { onAdded: (id: string) => void }) {
-  const [mode, setMode] = usePersisted<'new' | 'existing'>('otter.addMode', 'new');
-  const [path, setPath] = useState('C:\\dev\\');
-  const [parent, setParent] = usePersisted('otter.newParent', 'C:\\dev\\web\\');
+export function AddProject({ onAdded, sep = '\\', home = '' }: { onAdded: (id: string) => void; sep?: string; home?: string }) {
+  const win = sep === '\\';
+  const devRoot = win ? 'C:\\dev\\' : home.replace(/\/+$/, '') + '/dev/';
+  const [mode, setMode] = usePersisted<'new' | 'clone' | 'existing'>('otter.addMode', 'new');
+  const [path, setPath] = useState(devRoot);
+  const [parent, setParent] = usePersisted('otter.newParent', win ? 'C:\\dev\\web\\' : devRoot);
+  const [repo, setRepo] = useState('');
   const [name, setName] = useState('');
   const [git, setGit] = usePersisted('otter.newGit', true);
   const [busy, setBusy] = useState(false);
@@ -109,22 +114,35 @@ export function AddProject({ onAdded }: { onAdded: (id: string) => void }) {
       setBusy(false);
     }
   };
-  const add = (p: string) => run(() => api.addProject(p));
+  /** Folder as typed, without the trailing separator; ~ is the home folder (Linux). */
+  const clean = (p: string) => {
+    const t = p.trim().replace(win ? /[\\/]+$/ : /\/+$/, '');
+    return !win && t.startsWith('~') ? home + t.slice(1) : t || p.trim();
+  };
+  const add = (p: string) => run(() => api.addProject(clean(p)));
   const create = () => {
     if (!name.trim()) return setError('Wie soll das Projekt heißen?');
-    run(() => api.createProject(parent.replace(/\\+$/, ''), name.trim(), git));
+    run(() => api.createProject(clean(parent), name.trim(), git));
   };
-  const target = `${parent.replace(/\\+$/, '')}\\${name.trim() || '…'}`;
+  const repoName = repo.trim().replace(/\/+$/, '').split(/[/:]/).pop()?.replace(/\.git$/, '') ?? '';
+  const clone = () => {
+    if (!repo.trim()) return setError('Welches Repo? z. B. name/repo');
+    run(() => api.cloneProject(repo.trim(), clean(parent)));
+  };
+  const target = `${clean(parent)}${sep}${(mode === 'clone' ? repoName : name.trim()) || '…'}`;
 
   return (
     <main className="pane add">
       <div className="add-inner">
-        <h1>{mode === 'new' ? 'Neues Projekt' : 'Projekt hinzufügen'}</h1>
+        <h1>{mode === 'new' ? 'Neues Projekt' : mode === 'clone' ? 'Von GitHub holen' : 'Projekt hinzufügen'}</h1>
 
         <div className="segmented add-mode">
           <Glide selector="button.on" watch={[mode]} />
           <button className={mode === 'new' ? 'on' : ''} onClick={() => setMode('new')}>
             Neues Projekt
+          </button>
+          <button className={mode === 'clone' ? 'on' : ''} onClick={() => setMode('clone')}>
+            Von GitHub
           </button>
           <button className={mode === 'existing' ? 'on' : ''} onClick={() => setMode('existing')}>
             Vorhandener Ordner
@@ -145,7 +163,7 @@ export function AddProject({ onAdded }: { onAdded: (id: string) => void }) {
               <input autoFocus value={name} spellCheck={false} onChange={(e) => setName(e.target.value)} placeholder="mein-projekt" />
             </div>
             <label className="add-label">Ort</label>
-            <FolderField value={parent} onChange={setParent} onSubmit={create} placeholder="C:\dev\web" />
+            <FolderField sep={sep} value={parent} onChange={setParent} onSubmit={create} placeholder={win ? 'C:\\dev\\web' : '~/dev'} />
             <label className="add-check">
               <input type="checkbox" checked={git} onChange={(e) => setGit(e.target.checked)} />
               <GitBranch size={15} /> Git einrichten
@@ -158,20 +176,44 @@ export function AddProject({ onAdded }: { onAdded: (id: string) => void }) {
               {busy ? 'Lege an …' : 'Projekt anlegen'}
             </button>
           </form>
+        ) : mode === 'clone' ? (
+          <form
+            className="add-form new-project"
+            onSubmit={(e) => {
+              e.preventDefault();
+              clone();
+            }}
+          >
+            <label className="add-label">Repo</label>
+            <div className="field">
+              <FolderGit2 size={18} className="field-icon" />
+              <input autoFocus value={repo} spellCheck={false} onChange={(e) => setRepo(e.target.value)} placeholder="name/repo oder https://github.com/…" />
+            </div>
+            <label className="add-label">Ort</label>
+            <FolderField sep={sep} value={parent} onChange={setParent} onSubmit={clone} placeholder={win ? 'C:\\dev\\web' : '~/dev'} />
+            <div className="add-target">
+              Wird geklont nach: <code>{target}</code>
+            </div>
+            {error && <div className="add-error">{error}</div>}
+            <button className="btn primary big add-create" type="submit" disabled={busy || !repo.trim()}>
+              {busy ? 'Klone …' : 'Klonen und öffnen'}
+            </button>
+          </form>
         ) : (
           <>
             <form
               className="add-form"
               onSubmit={(e) => {
                 e.preventDefault();
-                add(path.replace(/\\+$/, '') || path);
+                add(path);
               }}
             >
               <FolderField
+                sep={sep}
                 value={path}
                 onChange={setPath}
                 autoFocus
-                placeholder="C:\dev\mein-projekt"
+                placeholder={win ? 'C:\\dev\\mein-projekt' : '~/dev/mein-projekt'}
                 action={
                   <button className="btn primary" type="submit" disabled={busy}>
                     Hinzufügen

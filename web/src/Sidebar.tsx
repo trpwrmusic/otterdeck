@@ -2,7 +2,7 @@ import { useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { ArrowUpRight, BellRing, ChevronRight, Laptop, MessageCircle, MessagesSquare, Server, Pin, Plus, RefreshCw, Search } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
 import { api, attentionOf, pickImage, usePersisted } from './api';
-import { ServerTasks } from './ServerParts';
+import { LaptopSection, ServerTasks } from './ServerParts';
 import { ContextMenu, ProjectAvatar, StatusMark, type MenuItem } from './bits';
 import { CHAT_MIME } from './ChatsPage';
 import { Glide } from './Glide';
@@ -449,6 +449,7 @@ export function Sidebar(props: Props) {
             <Plus size={16} /> Erstes Projekt hinzufügen
           </button>
         )}
+        <LaptopSection state={state} />
         {section('Angepinnt', sections.pinned, false, !sections.active.length)}
         {section('Aktiv', sections.active, false, true)}
         {section('Letzter Tag', sections.recent, true)}
@@ -464,15 +465,37 @@ export function Sidebar(props: Props) {
         )}
       </div>
 
-      {state.update.available && (
-        <button className="notify-card update" onClick={() => !state.update.pending && api.restart()} disabled={state.update.pending}>
-          <RefreshCw size={16} className={state.update.pending ? 'spinning' : ''} />
-          <span>
-            <strong>{state.update.pending ? 'Neustart vorgemerkt' : 'Neue Version'}</strong>
-            <span>{state.update.pending ? 'Sobald Claude fertig ist' : 'Neu starten, Gespräche bleiben'}</span>
-          </span>
-        </button>
-      )}
+      {state.update.available &&
+        (state.update.pending ? (
+          // Waiting for running chats; "Jetzt" restarts anyway, they carry on afterwards by themselves.
+          <div className="notify-card update pending">
+            <RefreshCw size={16} className="spinning" />
+            <span>
+              <strong>Neustart vorgemerkt</strong>
+              <span>
+                {(() => {
+                  const n = state.tabs.filter((t) => t.status === 'working').length;
+                  return n ? `Wartet auf ${n} ${n === 1 ? 'Chat' : 'Chats'}` : 'Startet gleich …';
+                })()}
+              </span>
+            </span>
+            <button
+              className="update-now"
+              title="Jetzt neu starten: laufende Chats werden unterbrochen und machen danach von selbst weiter"
+              onClick={() => api.restart(undefined, true)}
+            >
+              Jetzt
+            </button>
+          </div>
+        ) : (
+          <button className="notify-card update" onClick={() => api.restart()}>
+            <RefreshCw size={16} />
+            <span>
+              <strong>Neue Version</strong>
+              <span>Neu starten, Gespräche bleiben</span>
+            </span>
+          </button>
+        ))}
 
       {notifyPermission === 'default' && state.projects.length > 0 && (
         <button className="notify-card" onClick={onEnableNotifications}>

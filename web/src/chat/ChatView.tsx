@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Brain, ChevronRight, FileText, ImageIcon, Plus, Square, SquareTerminal, X } from 'lucide-react';
+import { ArrowUp, Brain, CheckCheck, ChevronRight, Clock, FileText, ImageIcon, Plus, Square, SquareTerminal, X } from 'lucide-react';
 import type { ChatItem, ChatServerMsg, TabView } from '../../../shared/types';
 import { api, chatUrl, usePersisted } from '../api';
 import { handleCopyClick, renderMarkdown } from './markdown';
 import { ShellCard } from './ShellCard';
-import { EditCard, isEdit, StepRow, TodoCard } from './ToolCard';
-import { PromptCard } from './PromptCard';
+import { AgentCard, EditCard, isEdit, StepRow, TodoCard } from './ToolCard';
+import { LoginCard, PromptCard } from './PromptCard';
 import { formatSize, ModeMenu, type Attachment } from './Composer';
 import { ComposerSheet, ModelMenu } from '../ModelPicker';
 
@@ -27,15 +27,18 @@ type Block =
   | { k: 'item'; item: ChatItem }
   | { k: 'steps'; tools: Tool[] }
   | { k: 'edit'; tool: Tool }
-  | { k: 'todo'; tool: Tool };
+  | { k: 'todo'; tool: Tool }
+  | { k: 'agent'; tool: Tool };
 
 /** Groups runs of small steps; edits and the newest task list stand on their own. */
 function toBlocks(items: ChatItem[]): Block[] {
   const lastTodo = [...items].reverse().find((i) => i.k === 'tool' && i.name === 'TodoWrite')?.id;
   const out: Block[] = [];
   for (const item of items) {
+    if (item.k === 'user' && item.gone) continue; // shown as the normal message it became
     if (item.k === 'tool') {
       if (isEdit(item)) out.push({ k: 'edit', tool: item });
+      else if (item.name === 'Agent' || item.name === 'Task') out.push({ k: 'agent', tool: item });
       else if (item.name === 'TodoWrite') {
         if (item.id === lastTodo) out.push({ k: 'todo', tool: item });
       } else {
@@ -228,7 +231,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   const lastText = useMemo(() => blocks.reduce((at, b, i) => (b.k === 'item' && b.item.k === 'text' ? i : at), -1), [blocks]);
   // The newest block is a tool: if it has no result yet it spins in the step list already.
   const lastBlock = blocks.at(-1);
-  const lastTool = lastBlock?.k === 'steps' ? lastBlock.tools.at(-1) : lastBlock?.k === 'edit' || lastBlock?.k === 'todo' ? lastBlock.tool : null;
+  const lastTool = lastBlock?.k === 'steps' ? lastBlock.tools.at(-1) : lastBlock?.k === 'edit' || lastBlock?.k === 'todo' || lastBlock?.k === 'agent' ? lastBlock.tool : null;
   const lastIsTool = !!lastTool;
   const openTool = !!lastTool && !lastTool.result;
   const narrow = useNarrow();
@@ -339,8 +342,9 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               {b.k === 'steps' && <Steps tools={b.tools} running={running && i === blocks.length - 1} />}
               {b.k === 'edit' && <EditCard tool={b.tool} />}
               {b.k === 'todo' && <TodoCard tool={b.tool} />}
+              {b.k === 'agent' && <AgentCard tool={b.tool} running={running} />}
               {b.k === 'item' && b.item.k === 'user' && (
-                <div className="msg-user">
+                <div className={`msg-user${b.item.queued ? ' queued ' + b.item.queued : ''}`}>
                   <div className="bubble">
                     <UserText text={b.item.text} />
                     {b.item.images > 0 && (
@@ -349,6 +353,19 @@ export function ChatView({ tab, onShowTerminal }: Props) {
                       </span>
                     )}
                   </div>
+                  {b.item.queued && (
+                    <div className="queued-note">
+                      {b.item.queued === 'waiting' ? (
+                        <>
+                          <Clock size={12} /> Wartet, Claude liest sie beim nächsten Schritt
+                        </>
+                      ) : (
+                        <>
+                          <CheckCheck size={12} /> Während der Arbeit gelesen
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {b.k === 'item' && b.item.k === 'text' && (
@@ -383,7 +400,9 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             </div>
           )}
           {tab.status === 'waiting' &&
-            (tab.prompt ? (
+            (tab.login ? (
+              <LoginCard tab={tab} login={tab.login} onShowTerminal={onShowTerminal} />
+            ) : tab.prompt ? (
               <PromptCard key={tab.prompt.question + tab.prompt.title} tab={tab} prompt={tab.prompt} onShowTerminal={onShowTerminal} />
             ) : (
               <div className="ask-card">

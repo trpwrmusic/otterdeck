@@ -51,7 +51,7 @@ import { AGY_BIN, AgyTranscriptTail, agyBusy, agyModeFlag, agyTranscript, agyMod
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
 import { TranscriptTail } from './transcript.ts';
-import { parseMode, parsePrompt, promptSummary } from './prompt.ts';
+import { parseLogin, parseMode, parsePrompt, parseSetup, promptSummary } from './prompt.ts';
 import { data, newId, save, type ProjectRecord, type TabRecord } from './store.ts';
 
 const { Terminal } = headless as unknown as typeof import('@xterm/headless');
@@ -106,6 +106,7 @@ class Tab {
   question: string | null = null;
   /** The dialog on screen right now (permission or question), read from the mirror terminal. */
   prompt: PromptView | null = null;
+  login: { url: string; code: boolean } | null = null;
   mode: PermissionMode | null = null;
   private detectTimer: NodeJS.Timeout | null = null;
   lastPrompt: string | null = null;
@@ -275,6 +276,7 @@ class Tab {
       activity: this.activity,
       question: this.question,
       prompt: this.prompt,
+      login: this.login,
       mode: this.agent ? this.mode : null,
       model: this.agent ? this.modelLabel : null,
       modelId: this.rec.model ?? null,
@@ -609,10 +611,17 @@ class Tab {
         this.mode = mode;
         changed();
       }
-      const p = parsePrompt(screen);
-      if (JSON.stringify(p) === JSON.stringify(this.prompt)) return;
+      // First start / login: menus without the usual footer, and the sign-in link.
+      const claude = this.rec.kind === 'claude';
+      const p = parsePrompt(screen) ?? (claude ? parseSetup(screen) : null);
+      const login = claude && !p ? parseLogin(screen) : null;
+      if (JSON.stringify(p) === JSON.stringify(this.prompt) && JSON.stringify(login) === JSON.stringify(this.login)) return;
       this.prompt = p;
-      if (p) {
+      this.login = login;
+      if (login) {
+        this.question = 'Anmeldung: Link öffnen und Code einfügen';
+        this.setStatus('waiting');
+      } else if (p) {
         this.question = promptSummary(p);
         this.setStatus('waiting');
       } else if (this.status === 'waiting') {
@@ -621,6 +630,14 @@ class Tab {
       }
       changed();
     }, 120);
+  }
+
+  /** Types the code from the sign-in page into Claude's "Paste code here" field and confirms it. */
+  loginCode(code: string) {
+    if (!this.proc || !this.login?.code) return false;
+    this.proc.write(code);
+    setTimeout(() => this.proc?.write('\r'), 150);
+    return true;
   }
 
   /**

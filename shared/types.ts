@@ -56,6 +56,8 @@ export interface TabView {
   question: string | null;
   /** The dialog on screen while waiting, with its options. */
   prompt: PromptView | null;
+  /** Claude Code shows its sign-in link (login with a subscription): open it, paste the code back. */
+  login: { url: string; code: boolean } | null;
   /** Claude Code's permission mode as its footer shows it (null = not seen yet). */
   mode: PermissionMode | null;
   /** Model the session runs with, as the CLI shows it (e.g. "Opus 5.5", "Gemini 4 Argon (Medium)"). */
@@ -183,6 +185,23 @@ export interface AccountView {
   isDefault: boolean;
 }
 
+/** The laptop as the server sees it: online or not, and its projects with their state. */
+export interface LaptopView {
+  url: string;
+  online: boolean | null;
+  checkedAt: number;
+  /** Last time it answered. */
+  seenAt: number;
+  projects: {
+    id: string;
+    name: string;
+    group: string | null;
+    lastUsed: number;
+    tabs: number;
+    attention: 'waiting' | 'working' | 'done' | null;
+  }[];
+}
+
 export interface AppState {
   projects: ProjectView[];
   tabs: TabView[];
@@ -201,6 +220,11 @@ export interface AppState {
   agy: boolean;
   /** Server mode: where the laptop's Otterdeck is (it tells the server), for "Zum Laptop". */
   laptopUrl: string | null;
+  /** Server mode: the laptop's projects and whether it is on (null = laptop never reported). */
+  laptop: LaptopView | null;
+  /** Path separator and home folder of the machine Otterdeck runs on (folder fields). */
+  sep: string;
+  home: string;
   /** This window is the remote page (phone), not the PC. */
   isRemote?: boolean;
   /** Code version the server runs; the window reloads when it changes. */
@@ -313,12 +337,30 @@ export interface ToolResult {
   images: number;
 }
 
+/** A subagent Claude started (Agent/Task tool): what it does right now, read from its own transcript. */
+export interface AgentRun {
+  type: string;
+  description: string;
+  /** Claude Code marked it finished (a background agent finishes long after its tool call). */
+  done: boolean;
+  /** The newest steps (tool calls) of the subagent. */
+  steps: { name: string; summary: string; error: boolean }[];
+  /** All steps so far, also the ones no longer in `steps`. */
+  total: number;
+  /** Its latest words (short), e.g. what it says it is doing. */
+  said: string | null;
+}
+
 /** One thing in the chat, built from Claude's transcript. Same id = same thing (updates replace it). */
 export type ChatItem =
-  | { id: string; k: 'user'; text: string; images: number; at: number }
+  /**
+   * Your message. queued: sent while Claude was working – 'waiting' in Claude Code's queue, or 'read'
+   * (Claude took it in during its turn). gone: it became a normal message (shown as that instead).
+   */
+  | { id: string; k: 'user'; text: string; images: number; at: number; queued?: 'waiting' | 'read'; gone?: boolean }
   | { id: string; k: 'text'; text: string; at: number }
   | { id: string; k: 'thinking'; text: string; at: number }
-  | { id: string; k: 'tool'; name: string; summary: string; input: Record<string, unknown>; result: ToolResult | null; at: number }
+  | { id: string; k: 'tool'; name: string; summary: string; input: Record<string, unknown>; result: ToolResult | null; at: number; agent?: AgentRun }
   | { id: string; k: 'note'; text: string; at: number }
   /** A command run with "!" (Claude Code's bash mode): Claude sees it and its output. out = null while it runs. */
   | { id: string; k: 'shell'; cmd: string; out: string | null; err: string; at: number };

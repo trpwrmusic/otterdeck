@@ -40,9 +40,20 @@ export function App() {
   // Phone start: straight into what needs you (a waiting session, then a finished unread one),
   // otherwise back where you were. The project list only when nothing was open yet.
   const booted = useRef(false);
+  const justAdded = useRef<{ id: string; at: number } | null>(null);
   useEffect(() => {
     if (booted.current || !state) return;
     booted.current = true;
+    // Opened from elsewhere (e.g. the server's "Laptop" list): ?project=<id> goes straight there.
+    const wanted = new URLSearchParams(location.search).get('project');
+    if (wanted) {
+      history.replaceState(null, '', location.pathname);
+      if (state.projects.some((p) => p.id === wanted)) {
+        setView('project');
+        setSelected(wanted);
+        return;
+      }
+    }
     if (!window.matchMedia('(max-width: 760px)').matches) return;
     const newest = (list: typeof state.tabs) => [...list].sort((a, b) => b.changedAt - a.changedAt)[0];
     const urgent = newest(state.tabs.filter((t) => t.status === 'waiting')) ?? newest(state.tabs.filter((t) => t.status === 'done' && t.unseen));
@@ -115,9 +126,11 @@ export function App() {
     [setActiveTabs],
   );
 
-  // Select something sensible once the state arrives.
+  // Select something sensible once the state arrives. A project that was just added may come a
+  // moment after the "added" answer; keep it selected for a few seconds instead of jumping away.
   useEffect(() => {
-    if (state && (!selected || !state.projects.some((p) => p.id === selected)) && state.projects.length)
+    const fresh = justAdded.current && justAdded.current.id === selected && Date.now() - justAdded.current.at < 8000;
+    if (state && !fresh && (!selected || !state.projects.some((p) => p.id === selected)) && state.projects.length)
       setSelected(sidebarOrder(state, false)[0]?.id ?? state.projects[0].id);
   }, [state, selected, setSelected]);
 
@@ -341,7 +354,10 @@ export function App() {
         />
       ) : adding || !project ? (
         <AddProject
+          sep={state.sep}
+          home={state.home}
           onAdded={(id) => {
+            justAdded.current = { id, at: Date.now() };
             setAdding(false);
             setSelected(id);
           }}

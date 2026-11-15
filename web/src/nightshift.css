@@ -1864,3 +1864,53 @@ button.model-row:hover,
 .nav-item .mark {
   margin-left: auto;
 }
+
+/* ---------- server: the laptop and its projects ---------- */
+
+.laptop-section {
+  margin-bottom: 6px;
+}
+.laptop-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.laptop-state {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.laptop-state::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  vertical-align: 1px;
+}
+.laptop-state.on::before {
+  background: var(--plus);
+}
+.laptop-row {
+  text-decoration: none;
+  color: inherit;
+}
+.laptop-section.off .laptop-row {
+  opacity: 0.5;
+  cursor: default;
+}
+.laptop-more {
+  margin: 2px 0 0 8px;
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: 500 12px var(--font);
+  cursor: pointer;
+}
+.laptop-more:hover {
+  color: var(--text);
+}

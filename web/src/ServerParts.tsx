@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CloudUpload, ExternalLink, Server, Undo2 } from 'lucide-react';
+import { CloudUpload, ExternalLink, Laptop, Server, Undo2 } from 'lucide-react';
 import type { AppState, HandoffView, ServerView } from '../../shared/types';
 import { api, usePersisted } from './api';
 import { StatusMark } from './bits';
@@ -211,6 +211,46 @@ export function ServerTasks({ state, onOpened }: { state: AppState; onOpened: (p
       {list.map((h) => (
         <HandoffRow key={h.id} h={h} state={state} onOpened={(tabId) => onOpened(h.projectId, tabId)} />
       ))}
+    </div>
+  );
+}
+
+// ---------- sidebar on the server: the laptop and its projects ----------
+
+/** Server mode: is the laptop on, and what are its sessions doing? A tap opens the project there. */
+export function LaptopSection({ state }: { state: AppState }) {
+  const [all, setAll] = usePersisted('otter.laptopAll', false);
+  const lp = state.laptop;
+  if (!lp) return null;
+  const list = all ? lp.projects : lp.projects.slice(0, 5);
+  const off = lp.online === false;
+  return (
+    <div className={`section laptop-section${off ? ' off' : ''}`}>
+      <div className="section-title laptop-title">
+        <span>Laptop</span>
+        <span className={`laptop-state${lp.online ? ' on' : ''}`}>
+          {lp.online === null ? 'prüfe …' : lp.online ? 'online' : lp.seenAt ? `offline · ${ago(lp.seenAt)}` : 'offline'}
+        </span>
+      </div>
+      {list.map((p) => (
+        <a key={p.id} className="row laptop-row" href={off ? undefined : `${lp.url}/?project=${encodeURIComponent(p.id)}`} title={off ? 'Der Laptop ist aus' : 'Auf dem Laptop öffnen'}>
+          <span className="handoff-icon">
+            <Laptop size={14} />
+          </span>
+          <div className="row-text">
+            <div className="row-name">{p.name}</div>
+            <div className="row-line">
+              {p.attention === 'waiting' ? 'wartet auf dich' : p.attention === 'working' ? 'arbeitet' : p.attention === 'done' ? 'fertig' : p.tabs ? `${p.tabs} offen` : ago(p.lastUsed || lp.seenAt)}
+            </div>
+          </div>
+          <div className="row-mark">{p.attention && !off && <StatusMark attention={p.attention} />}</div>
+        </a>
+      ))}
+      {lp.projects.length > 5 && (
+        <button className="laptop-more" onClick={() => setAll(!all)}>
+          {all ? 'Weniger' : `Alle ${lp.projects.length} zeigen`}
+        </button>
+      )}
     </div>
   );
 }

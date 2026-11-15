@@ -123,3 +123,94 @@ export function parseMode(screen: string[]): PermissionMode | null {
   if (/\? for shortcuts|esc to interrupt/i.test(tail) || /^\s*❯\s*$/m.test(tail)) return 'default';
   return null;
 }
+
+// ---------- first start and login (shown before any chat exists) ----------
+
+/**
+ * Claude Code's setup menus have no "Esc to cancel" footer: the theme choice, the login method, and
+ * "Press Enter to continue" screens. They become a card like any other dialog.
+ */
+export function parseSetup(screen: string[]): PromptView | null {
+  const lines = screen.map((l) => l.replace(/\s+$/, ''));
+  const filled = lines.filter((l) => l.trim());
+  const at = lines.findIndex((l) => /Select login method:|Choose the text style/i.test(l));
+  if (at >= 0) {
+    const login = /login method/i.test(lines[at]);
+    const options: PromptView['options'] = [];
+    let selected = -1;
+    for (let i = at + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l.trim()) {
+        if (options.length) break;
+        continue;
+      }
+      if (/^[\s╌┄─]+$/.test(l)) break;
+      // Options are indented or carry the cursor; text before them ("To change this later …") is skipped.
+      if (!/^\s*❯/.test(l) && !/^\s{3,}\S/.test(l)) {
+        if (options.length) break;
+        continue;
+      }
+      const m = l.match(/^\s*(❯\s*)?(?:(\d{1,2})\.\s+)?(?:✔\s*)?(\S.*)$/);
+      if (!m) break;
+      const n = m[2] ? Number(m[2]) : options.length + 1;
+      const [label, ...rest] = m[3].split(' · ');
+      options.push({ n, label: label.trim(), description: rest.join(' · ').trim() });
+      if (m[1]) selected = n;
+    }
+    if (options.length < 2 || selected < 0) return null;
+    return {
+      kind: 'question',
+      title: login ? 'Anmeldung' : 'Erster Start',
+      detail: null,
+      question: login ? 'Wie soll sich Claude anmelden?' : 'Welche Farben soll das Terminal nutzen?',
+      options: options.map((o) => ({ ...o, label: germanSetup(o.label), description: germanSetup(o.description) })),
+      selected,
+      freeText: null,
+    };
+  }
+  // "Login successful. Press Enter to continue…", security notes and similar one-key screens.
+  const tail = filled.slice(-3).join('\n');
+  if (/Press Enter to continue/i.test(tail)) {
+    const idx = lines.findLastIndex((l) => /Press Enter to continue/i.test(l));
+    const before = lines
+      .slice(Math.max(0, idx - 8), idx)
+      .map((l) => l.trim())
+      .filter((l) => l && !/^[╌┄─.]+$/.test(l));
+    const question = /Login successful/i.test(lines.join('\n')) ? 'Anmeldung erfolgreich.' : before.at(-1) ?? 'Weiter?';
+    return { kind: 'question', title: 'Erster Start', detail: null, question, options: [{ n: 1, label: 'Weiter', description: '' }], selected: 1, freeText: null };
+  }
+  return null;
+}
+
+function germanSetup(s: string) {
+  return s
+    .replace(/^Claude account with subscription$/i, 'Claude-Konto mit Abo')
+    .replace(/^Anthropic Console account$/i, 'Anthropic-Console-Konto')
+    .replace(/^API usage billing$/i, 'Abrechnung nach API-Nutzung')
+    .replace(/^3rd-party platform$/i, 'Andere Plattform')
+    .replace(/^Auto \(match terminal\)$/i, 'Automatisch (wie das Terminal)')
+    .replace(/^Dark mode/i, 'Dunkel')
+    .replace(/^Light mode/i, 'Hell')
+    .replace(/\(colorblind-friendly\)/i, '(farbenblind-freundlich)')
+    .replace(/\(ANSI colors only\)/i, '(nur ANSI-Farben)');
+}
+
+/**
+ * The sign-in link Claude Code shows ("Browser didn't open? Use the url below …"), joined back
+ * together where the terminal wrapped it, and whether it waits for a pasted code.
+ */
+export function parseLogin(screen: string[]): { url: string; code: boolean } | null {
+  const lines = screen.map((l) => l.replace(/\s+$/, ''));
+  const start = lines.findIndex((l) => /https:\/\/\S*(oauth|authorize|login)/i.test(l));
+  if (start < 0) return null;
+  let url = lines[start].trim().replace(/^.*?(https:\/\/)/, '$1');
+  // Wrapped: the following lines continue the URL without spaces until an empty line.
+  for (let i = start + 1; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (!t || /\s/.test(t) || !/^[\w%&=.~:/?#@!$'()*+,;-]+$/.test(t)) break;
+    url += t;
+  }
+  const code = lines.some((l) => /Paste code here/i.test(l));
+  if (!/^https:\/\/[^\s]+$/.test(url)) return null;
+  return { url, code };
+}

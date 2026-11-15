@@ -78,6 +78,7 @@ export const api = {
   clearGroupIcon: (name: string) => call('DELETE', `/api/groups/icon?name=${encodeURIComponent(name)}`),
   addProject: (path: string) => call<{ id: string }>('POST', '/api/projects', { path }),
   createProject: (parent: string, name: string, git: boolean) => call<{ id: string }>('POST', '/api/projects', { create: true, parent, name, git }),
+  cloneProject: (url: string, parent: string) => call<{ id: string }>('POST', '/api/projects', { clone: true, url, parent }),
   freeChats: () => call<{ id: string }>('POST', '/api/projects/free'),
   renameGroup: (from: string, to: string) => call('POST', '/api/groups', { from, to }),
   updateProject: (id: string, patch: { name?: string | null; pinned?: boolean; account?: string | null; group?: string | null }) =>
@@ -118,13 +119,14 @@ export const api = {
   },
   choose: (id: string, n: number, text?: string) => call('POST', '/api/tabs/' + id + '/choose', { n, text }),
   keyToTab: (id: string, key: 'allow' | 'deny' | 'stop') => call('POST', `/api/tabs/${id}/key`, { key }),
+  loginCode: (id: string, code: string) => call('POST', `/api/tabs/${id}/login`, { code }),
   changes: (id: string, mode: CompareMode) => call<Changes>('GET', `/api/projects/${id}/changes?mode=${mode}`),
   diff: (id: string, path: string, mode: CompareMode) =>
     call<FileDiff>('GET', `/api/projects/${id}/diff?mode=${mode}&path=${encodeURIComponent(path)}`),
   files: (id: string, path: string) => call<DirEntry[]>('GET', `/api/projects/${id}/files?path=${encodeURIComponent(path)}`),
   file: (id: string, path: string) => call<FileContent>('GET', `/api/projects/${id}/file?path=${encodeURIComponent(path)}`),
   rawUrl: (id: string, path: string) => `/api/projects/${id}/raw?path=${encodeURIComponent(path)}`,
-  restart: (cont?: { tab: string; prompt: string }) => call('POST', '/api/restart', cont ?? {}),
+  restart: (cont?: { tab: string; prompt: string }, now = false) => call('POST', '/api/restart', { ...(cont ?? {}), now }),
   closeTab: (id: string) => call('DELETE', `/api/tabs/${id}`),
   restartTab: (id: string, fresh = false) => call('POST', `/api/tabs/${id}/restart`, { fresh }),
   seen: (id: string) => call('POST', `/api/tabs/${id}/seen`, {}),

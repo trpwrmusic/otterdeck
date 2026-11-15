@@ -18,7 +18,7 @@ function newest(dir: string): number {
   return max;
 }
 
-/** A fingerprint of the code: newest change in the server sources and the built UI. */
+/** Fingerprint of the server code: its newest change. Only this needs a restart. */
 export function fingerprint(): string {
   let max = 0;
   for (const d of WATCHED) {
@@ -26,25 +26,42 @@ export function fingerprint(): string {
       max = Math.max(max, newest(d));
     } catch {}
   }
-  try {
-    max = Math.max(max, fs.statSync(UI_ENTRY).mtimeMs);
-  } catch {}
   return String(Math.round(max));
 }
 
-/** What the running server was started with; the UI reloads when this changes. */
-export const VERSION = fingerprint();
+/** Fingerprint of the built UI. A new UI needs no restart: the files are read from disk on each load. */
+function uiFingerprint(): string {
+  try {
+    return String(Math.round(fs.statSync(UI_ENTRY).mtimeMs));
+  } catch {
+    return '0';
+  }
+}
+
+/** The server code this process runs. */
+const SERVER_VERSION = fingerprint();
+let ui = uiFingerprint();
+
+/** Server code + UI; open windows reload when it changes (a new UI shows up right away). */
+export const version = () => SERVER_VERSION + '-' + ui;
 
 export const update = { available: false, pending: false };
 
 export function watchForUpdates(onChange: () => void) {
   setInterval(() => {
-    const now = fingerprint() !== VERSION;
+    let changed = false;
+    const nextUi = uiFingerprint();
+    if (nextUi !== ui) {
+      ui = nextUi;
+      changed = true;
+    }
+    const now = fingerprint() !== SERVER_VERSION;
     if (now !== update.available) {
       update.available = now;
-      onChange();
+      changed = true;
     }
-  }, 4000).unref();
+    if (changed) onChange();
+  }, 2000).unref();
 }
 
 /**

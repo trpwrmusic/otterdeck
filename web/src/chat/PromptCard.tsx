@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CornerDownLeft, SquareTerminal } from 'lucide-react';
+import { Copy, CornerDownLeft, ExternalLink, SquareTerminal } from 'lucide-react';
 import type { PromptView, TabView } from '../../../shared/types';
 import { api } from '../api';
 
@@ -125,6 +125,69 @@ export function PromptCard({ tab, prompt, onShowTerminal }: { tab: TabView; prom
       </div>
       <button className="ask-terminal" onClick={onShowTerminal}>
         <SquareTerminal size={13} /> Im Terminal ansehen
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Claude Code's sign-in (login with a subscription): the link to open, and a field for the code the
+ * sign-in page shows – so nobody has to go to the terminal for it, also from the phone.
+ */
+export function LoginCard({ tab, login, onShowTerminal }: { tab: TabView; login: NonNullable<TabView['login']>; onShowTerminal: () => void }) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.loginCode(tab.id, code.trim());
+      setCode('');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ask-card prompt login-card">
+      <div className="ask-title">Anmeldung</div>
+      <div className="ask-q">Claude braucht deine Anmeldung.</div>
+      <div className="login-steps">
+        {login.code
+          ? 'Öffne die Anmeldeseite, melde dich an und füg den Code, den sie dir zeigt, hier ein.'
+          : 'Öffne die Anmeldeseite und melde dich an. Claude macht danach von selbst weiter.'}
+      </div>
+      <div className="login-actions">
+        <a className="btn primary" href={login.url} target="_blank" rel="noopener noreferrer">
+          <ExternalLink size={15} /> Anmeldeseite öffnen
+        </a>
+        <button
+          className="btn quiet"
+          onClick={() => navigator.clipboard?.writeText(login.url).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}
+        >
+          <Copy size={15} /> {copied ? 'Kopiert' : 'Link kopieren'}
+        </button>
+      </div>
+      {login.code && (
+        <form
+          className="ask-free login-code"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (code.trim()) send();
+          }}
+        >
+          <input value={code} spellCheck={false} autoComplete="one-time-code" onChange={(e) => setCode(e.target.value)} placeholder="Code einfügen" />
+          <button className="btn small primary" disabled={!code.trim() || busy}>
+            {busy ? 'Sende …' : 'Anmelden'}
+          </button>
+        </form>
+      )}
+      {error && <div className="login-error">{error}</div>}
+      <button className="ask-terminal" onClick={onShowTerminal}>
+        <SquareTerminal size={14} /> Im Terminal ansehen
       </button>
     </div>
   );

@@ -8,6 +8,7 @@ import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT
 import { recordUsage, usageViews } from './usage.ts';
 import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
 import { AGY_AVAILABLE, agyConversations } from './agy.ts';
+import { laptopView, pollLaptopNow, startLaptopPoll } from './laptop.ts';
 import { models, validModel } from './models.ts';
 import { continuePrompt, exportChat } from './continue.ts';
 import { NOLA_AVAILABLE, projectFor, claudePrompt, moveTask, projectTasks, searchTasks, setSubtask, taskDetail } from './nola.ts';
@@ -18,7 +19,7 @@ import { writeHookSettings } from './hooks.ts';
 import { shareMemory } from './memory.ts';
 import { data, flush, newId, samePath, save } from './store.ts';
 import { EFFORTS, closeTab, createTab, events, killAll, markSeen, restartTab, resumePending, tabs } from './tabs.ts';
-import { respawn, update, VERSION, watchForUpdates } from './update.ts';
+import { respawn, update, version, watchForUpdates } from './update.ts';
 import { fileEvents, keepWatching } from './watch.ts';
 
 writeHookSettings();
@@ -99,8 +100,8 @@ if (!data.activityV2) {
 pollLastChats();
 
 // "Freie Chats" (chats without a project, in the home folder) exists from the start, so its entry in
-// the sidebar can open it right away. Not on a server, where there is no such home use.
-if (!SERVER_MODE && !data.projects.some((p) => p.free)) {
+// the sidebar can open it right away. On the server too: there it is the place for quick chats.
+if (!data.projects.some((p) => p.free)) {
   data.projects.push({ id: newId(), path: HOME, name: 'Freie Chats', free: true, addedAt: Date.now(), lastUsed: 0 });
   save();
 }
@@ -137,7 +138,10 @@ function state(): AppState {
     nola: NOLA_AVAILABLE,
     agy: AGY_AVAILABLE,
     laptopUrl: SERVER_MODE ? data.laptopUrl ?? null : null,
-    version: VERSION,
+    laptop: laptopView(),
+    sep: path.sep,
+    home: HOME,
+    version: version(),
     update: { ...update },
   };
 }
@@ -270,14 +274,16 @@ function projectIcon(dir: string): string | null {
 }
 
 function listDirs(input: string) {
-  const raw = input.trim().replace(/\//g, '\\');
-  if (!/^[a-zA-Z]:/.test(raw)) return [];
-  const endsWithSep = raw.endsWith('\\');
+  const win = path.sep === '\\';
+  let raw = win ? input.trim().replace(/\//g, '\\') : input.trim();
+  if (!win && raw.startsWith('~')) raw = HOME + raw.slice(1);
+  if (win ? !/^[a-zA-Z]:/.test(raw) : !raw.startsWith('/')) return [];
+  const endsWithSep = raw.endsWith(path.sep);
   const parent = endsWithSep ? raw : path.dirname(raw);
   const prefix = endsWithSep ? '' : path.basename(raw).toLowerCase();
   try {
     return fs
-      .readdirSync(parent.length === 2 ? parent + '\\' : parent, { withFileTypes: true })
+      .readdirSync(win && parent.length === 2 ? parent + '\\' : parent, { withFileTypes: true })
       .filter((e) => e.isDirectory() && !/^[.$]/.test(e.name) && e.name.toLowerCase().startsWith(prefix))
       .slice(0, 30)
       .map((e) => path.join(parent, e.name));
@@ -333,6 +339,7 @@ const server = http.createServer(async (req, res) => {
         data.laptopUrl = u;
         save();
         events.emit('change');
+        pollLaptopNow(() => events.emit('change'));
       }
       return json(res, 200, { ok: true });
     }
@@ -483,7 +490,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/restart' && method === 'POST') {
       const body = await readBody(req);
       const cont = typeof body.tab === 'string' && typeof body.prompt === 'string' ? { tab: body.tab, prompt: body.prompt } : undefined;
-      requestRestart(cont);
+      requestRestart(cont, !!body.now);
       return json(res, 200, { ok: true });
     }
     if (url.pathname === '/api/shutdown' && method === 'POST') {
@@ -608,6 +615,38 @@ const server = http.createServer(async (req, res) => {
 
     if (parts[1] === 'projects' && !parts[2] && method === 'POST') {
       const body = await readBody(req);
+      // From GitHub (or any git address): clone into the chosen place, then add it like a folder.
+      if (body.clone) {
+        let src = String(body.url ?? '').trim().replace(/\/+$/, '');
+        if (/^[\w.-]+\/[\w.-]+$/.test(src)) src = `https://github.com/${src}.git`; // owner/repo
+        if (!/^(https:\/\/|git@)[\w.@:/~-]+$/.test(src)) return json(res, 400, { error: 'Bitte eine Repo-Adresse wie https://github.com/name/repo oder name/repo.' });
+        const parent = path.resolve(String(body.parent ?? '').trim());
+        if (!body.parent || !fs.existsSync(parent) || !fs.statSync(parent).isDirectory()) return json(res, 400, { error: 'Den Ort gibt es nicht.' });
+        const name = String(body.name ?? '').trim() || src.split(/[/:]/).pop()!.replace(/\.git$/, '');
+        if (!name || /[<>:"/\\|?*\x00-\x1f]/.test(name) || /^\.+$/.test(name)) return json(res, 400, { error: 'Ungültiger Ordnername.' });
+        const target = path.join(parent, name);
+        if (fs.existsSync(target)) return json(res, 400, { error: `„${name}“ gibt es dort schon. Füg den Ordner unter „Vorhandener Ordner“ hinzu.` });
+        try {
+          await new Promise<void>((resolve, reject) =>
+            execFile(
+              'git',
+              ['clone', '-q', src, target],
+              // Never wait for a password prompt that nobody sees: fail with a message instead.
+              { timeout: 10 * 60_000, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: 'ssh -o BatchMode=yes' } },
+              (err, _out, stderr) => (err ? reject(new Error(String(stderr || err.message).trim().split('\n').pop())) : resolve()),
+            ),
+          );
+        } catch (err) {
+          fs.rmSync(target, { recursive: true, force: true });
+          const msg = (err as Error).message;
+          return json(res, 400, {
+            error: /could not read Username|Authentication|Permission denied|not found|Repository not found/i.test(msg)
+              ? `Klonen ging nicht: kein Zugriff auf das Repo. Auf diesem Rechner ist Git für GitHub nicht angemeldet (${msg}).`
+              : `Klonen ging nicht: ${msg}`,
+          });
+        }
+        body.path = target;
+      }
       // A new project: create its folder first (and optionally a git repository).
       if (body.create) {
         const name = String(body.name ?? '').trim();
@@ -821,6 +860,13 @@ const server = http.createServer(async (req, res) => {
         const ok = await tabs.get(id)!.choose(Number(body.n), typeof body.text === 'string' ? body.text : undefined);
         return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Gerade ist keine Frage offen.' });
       }
+      // The code from the sign-in page, typed into Claude's "Paste code here" field.
+      if (parts[3] === 'login' && method === 'POST') {
+        const code = String((await readBody(req)).code ?? '').trim();
+        if (!/^[\w#.~-]{8,2000}$/.test(code)) return json(res, 400, { error: 'Das sieht nicht nach einem Anmelde-Code aus.' });
+        const ok = tabs.get(id)!.loginCode(code);
+        return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Claude wartet gerade nicht auf einen Code.' });
+      }
       if (parts[3] === 'key' && method === 'POST') {
         const body = await readBody(req);
         const key = body.key === 'allow' ? 'allow' : body.key === 'deny' ? 'deny' : 'stop';
@@ -916,6 +962,7 @@ events.on('toast', (text: string) => {
 // Laptop: status of the tasks on the server, for the sidebar.
 setInterval(() => pollServer(() => events.emit('change'), remoteView().url), 10_000).unref();
 pollServer(() => events.emit('change'), remoteView().url);
+startLaptopPoll(() => events.emit('change'));
 
 let pushTimer: NodeJS.Timeout | null = null;
 events.on('change', () => {
@@ -951,8 +998,11 @@ function shutdown() {
 watchForUpdates(() => events.emit('change'));
 let restartTimer: NodeJS.Timeout | null = null;
 
-/** Restarts as soon as no Claude is in the middle of a turn. */
-function requestRestart(cont?: { tab: string; prompt: string }) {
+/**
+ * Restarts as soon as no Claude is in the middle of a turn. With now = true right away: a Claude that is
+ * still working gets interrupted, and after the restart it is told to carry on where it was.
+ */
+function requestRestart(cont?: { tab: string; prompt: string }, now = false) {
   if (cont) {
     const rec = data.tabs.find((t) => t.id === cont.tab);
     if (rec) {
@@ -963,8 +1013,16 @@ function requestRestart(cont?: { tab: string; prompt: string }) {
   update.pending = true;
   events.emit('change');
   if (restartTimer) return;
+  if (now) {
+    for (const t of tabs.values())
+      if (t.status === 'working' && t.rec.kind !== 'shell' && !t.rec.pendingPrompt) {
+        t.rec.pendingPrompt =
+          'Otterdeck wurde gerade neu gestartet (neue Version), mitten in deiner Arbeit. Mach bitte genau da weiter, wo du unterbrochen wurdest.';
+      }
+    save();
+  }
   const tryNow = () => {
-    if ([...tabs.values()].some((t) => t.status === 'working')) return;
+    if (!now && [...tabs.values()].some((t) => t.status === 'working')) return;
     if (restartTimer) clearInterval(restartTimer);
     console.log('Neustart in die neue Version …');
     respawn(() => {

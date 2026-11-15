@@ -483,3 +483,20 @@
 .spinning {
   animation: spin 1.4s linear infinite;
 }
+.notify-card.update.pending > span {
+  flex: 1;
+  min-width: 0;
+}
+.update-now {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+  font: 500 12px var(--font);
+  cursor: pointer;
+}
+.update-now:hover {
+  border-color: var(--control);
+}

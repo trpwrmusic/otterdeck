@@ -600,3 +600,160 @@
 .composer {
   transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
+
+/* ---------- subagents ---------- */
+
+.agent-card {
+  background: var(--surface-2);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.agent-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.agent-head > svg {
+  color: var(--text-3);
+  flex: none;
+}
+.agent-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-type {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--surface-3, rgba(255, 255, 255, 0.06));
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.agent-state {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.agent-card.live .agent-state {
+  color: var(--working);
+}
+.agent-card.error .agent-state {
+  color: var(--danger);
+}
+.agent-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 14px 10px 37px;
+}
+.agent-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.agent-step svg {
+  flex: none;
+}
+.agent-step span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-step.current {
+  color: var(--text-2);
+}
+.agent-step.error {
+  color: var(--danger);
+}
+.agent-more {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 2px;
+}
+.agent-said {
+  padding: 0 14px 10px 37px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.agent-body {
+  padding: 4px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.agent-label {
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+/* ---------- sign-in ---------- */
+
+.login-steps {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: -6px;
+}
+.login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.login-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+}
+.login-code input {
+  font-family: var(--code-font);
+}
+.login-error {
+  font-size: 12.5px;
+  color: var(--danger);
+}
+
+/* ---------- messages sent while Claude works ---------- */
+
+.msg-user.queued {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.msg-user.queued.waiting .bubble {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent-tint);
+  outline: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -1px;
+}
+.queued-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 4px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.msg-user.queued.waiting .queued-note {
+  color: var(--accent);
+}

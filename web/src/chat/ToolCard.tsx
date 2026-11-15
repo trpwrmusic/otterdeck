@@ -141,3 +141,66 @@ export function StepRow({ tool, running }: { tool: Tool; running: boolean }) {
     </div>
   );
 }
+
+/**
+ * A subagent: its own card with what it is doing right now (its newest steps, live), and on click
+ * the task it got, all its steps and its answer.
+ */
+export function AgentCard({ tool, running }: { tool: Tool; running: boolean }) {
+  const a = tool.agent;
+  const live = a ? !a.done : running && !tool.result;
+  const [open, setOpen] = useState(false);
+  const description = a?.description || str(tool.input.description) || 'Agent';
+  const type = a?.type || str(tool.input.subagent_type);
+  const steps = a?.steps ?? [];
+  const shown = open ? steps : live ? steps.slice(-3) : [];
+  const total = a?.total ?? 0;
+  // A background agent's call answers right away ("launched"); its real answer comes later.
+  const answer = tool.result && !/^Async agent launched/i.test(tool.result.text) ? tool.result : null;
+  return (
+    <div className={`agent-card${live ? ' live' : ''}${tool.result?.error ? ' error' : ''}${open ? ' open' : ''}`}>
+      <button className="agent-head" onClick={() => setOpen(!open)}>
+        {live ? <span className="mark working" style={{ width: 14, height: 14 }} /> : <Bot size={15} />}
+        <span className="agent-title">{description}</span>
+        {type && type !== 'general-purpose' && <span className="agent-type">{type}</span>}
+        <span className="agent-state">
+          {live ? 'arbeitet' : tool.result?.error ? 'Fehler' : 'fertig'}
+          {total > 0 && ` · ${total} ${total === 1 ? 'Schritt' : 'Schritte'}`}
+        </span>
+        <ChevronRight size={13} className={`chev${open ? ' rot' : ''}`} />
+      </button>
+      {shown.length > 0 && (
+        <div className="agent-steps">
+          {open && total > steps.length && <div className="agent-more">{total - steps.length} frühere Schritte</div>}
+          {shown.map((s, i) => {
+            const Icon = iconFor(s.name);
+            const current = live && i === shown.length - 1;
+            return (
+              <div key={total - shown.length + i} className={`agent-step${s.error ? ' error' : ''}${current ? ' current' : ''}`}>
+                <Icon size={13} />
+                <span>{s.summary}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {live && !open && a?.said && steps.length === 0 && <div className="agent-said">{a.said}</div>}
+      {open && (
+        <div className="agent-body">
+          {str(tool.input.prompt) && (
+            <>
+              <div className="agent-label">Auftrag</div>
+              <div className="tool-prompt">{str(tool.input.prompt)}</div>
+            </>
+          )}
+          {answer && (
+            <>
+              <div className="agent-label">Ergebnis</div>
+              <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(answer.text) }} />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
