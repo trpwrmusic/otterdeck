@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Brain, CheckCheck, ChevronRight, Clock, FileText, ImageIcon, Plus, Square, SquareTerminal, X } from 'lucide-react';
+import { ArrowUp, Brain, CheckCheck, ChevronRight, Clock, Sparkles, FileText, ImageIcon, Plus, Square, SquareTerminal, X } from 'lucide-react';
 import type { ChatItem, ChatServerMsg, TabView } from '../../../shared/types';
 import { api, chatUrl, usePersisted } from '../api';
 import { handleCopyClick, renderMarkdown } from './markdown';
@@ -257,9 +257,12 @@ export function ChatView({ tab, onShowTerminal }: Props) {
     input.current?.focus();
   };
 
-  const send = async () => {
+  /** Claude Code's suggestion for your next message, while the box is empty (Tab takes it, Enter sends it). */
+  const suggestion = !shellMode && !draft && !files.length && tab.kind === 'claude' ? tab.suggestion : null;
+
+  const send = async (override?: string) => {
     const ready = files.filter((f) => f.path);
-    const words = draft.trim();
+    const words = (override ?? draft).trim();
     // A "!" command runs in Claude Code's bash mode; attachments don't belong to it.
     if (shellMode) {
       if (!words) return;
@@ -454,6 +457,12 @@ export function ChatView({ tab, onShowTerminal }: Props) {
               ))}
             </div>
           )}
+          {suggestion && narrow && (
+            <button className="suggest-chip" onClick={() => setDraft(suggestion)} title="Vorschlag von Claude übernehmen">
+              <Sparkles size={13} />
+              <span>{suggestion}</span>
+            </button>
+          )}
           <div className="composer-row">
           {shellMode ? (
             <span className="shell-bang" title="Shell-Befehl: läuft direkt, Claude liest die Ausgabe mit">
@@ -481,6 +490,8 @@ export function ChatView({ tab, onShowTerminal }: Props) {
             placeholder={
               !alive
                 ? 'Claude läuft gerade nicht'
+                : suggestion && !narrow
+                  ? suggestion + '   ⇥ Tab übernimmt, Enter sendet'
                 : shellMode
                   ? narrow ? 'Shell-Befehl' : 'Shell-Befehl · Claude liest die Ausgabe mit'
                   : narrow ? (tab.kind === 'agy' ? 'Nachricht' : 'Nachricht an Claude') : tab.kind === 'agy' ? 'Nachricht an Antigravity' : 'Nachricht an Claude · ! für einen Shell-Befehl'
@@ -525,9 +536,15 @@ export function ChatView({ tab, onShowTerminal }: Props) {
                   return;
                 }
               }
+              // Claude Code's suggestion: Tab puts it into the box, Enter on the empty box sends it.
+              if (suggestion && e.key === 'Tab' && !e.shiftKey) {
+                e.preventDefault();
+                setDraft(suggestion);
+                return;
+              }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                send();
+                send(suggestion && !draft.trim() ? suggestion : undefined);
               }
             }}
           />
@@ -546,7 +563,7 @@ export function ChatView({ tab, onShowTerminal }: Props) {
           ) : (
             <button
               className="round-btn primary"
-              onClick={send}
+              onClick={() => send()}
               disabled={(!draft.trim() && !files.some((f) => f.path)) || uploading || !alive}
               title="Senden (Enter)"
             >

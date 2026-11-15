@@ -1,6 +1,7 @@
 // Reads Claude Code's on-screen dialogs (permission prompts, AskUserQuestion) from the mirror terminal.
 // Hooks don't always announce them (a Bash permission prompt can appear with no hook at all), so the
 // screen is the source of truth: if it shows a menu with "Esc to cancel", Claude is waiting for you.
+import type { Terminal } from '@xterm/headless';
 import type { PermissionMode, PromptView } from '../shared/types.ts';
 
 // Claude marks the selected option with ❯, Antigravity (agy) with >.
@@ -213,4 +214,42 @@ export function parseLogin(screen: string[]): { url: string; code: boolean } | n
   const code = lines.some((l) => /Paste code here/i.test(l));
   if (!/^https:\/\/[^\s]+$/.test(url)) return null;
   return { url, code };
+}
+
+/**
+ * Claude Code's suggestion for your next message: dimmed text in the empty input box, accepted there
+ * with Tab/Enter. Text you typed yourself is not dimmed, so it never counts as a suggestion.
+ */
+export function readSuggestion(t: Terminal): string | null {
+  const buf = t.buffer.active;
+  const rule = (y: number) => /^\s*─{20,}\s*$/.test(buf.getLine(y)?.translateToString(true) ?? '');
+  // The input box: a line starting with ">" or "❯" right under a rule, near the bottom.
+  let y = -1;
+  for (let i = t.rows - 1; i >= 0; i--) {
+    const line = buf.viewportY + i;
+    if (/^\s*[>❯]\s/.test(buf.getLine(line)?.translateToString(true) ?? '') && rule(line - 1)) {
+      y = line;
+      break;
+    }
+  }
+  if (y < 0) return null;
+  let text = '';
+  for (let line = y; line < buf.viewportY + t.rows && !rule(line); line++) {
+    const row = buf.getLine(line);
+    if (!row) break;
+    const start = line === y ? (row.translateToString(true).match(/^\s*[>❯]\s/)?.[0].length ?? 2) : 0;
+    let part = '';
+    for (let x = start; x < t.cols; x++) {
+      const cell = row.getCell(x);
+      if (!cell) break;
+      const ch = cell.getChars();
+      if (ch && ch.trim() && !cell.isDim()) return null; // typed by you
+      part += ch || ' ';
+    }
+    text += (text && !row.isWrapped ? '\n' : '') + part.replace(/\s+$/, '');
+  }
+  text = text.trim();
+  // The start screen's examples (Try "…") are hints, not a next step.
+  if (/^Try "/.test(text)) return null;
+  return text || null;
 }

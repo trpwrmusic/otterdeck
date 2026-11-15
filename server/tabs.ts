@@ -51,7 +51,7 @@ import { AGY_BIN, AgyTranscriptTail, agyBusy, agyModeFlag, agyTranscript, agyMod
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
 import { TranscriptTail } from './transcript.ts';
-import { parseLogin, parseMode, parsePrompt, parseSetup, promptSummary } from './prompt.ts';
+import { parseLogin, parseMode, parsePrompt, parseSetup, promptSummary, readSuggestion } from './prompt.ts';
 import { data, newId, save, type ProjectRecord, type TabRecord } from './store.ts';
 
 const { Terminal } = headless as unknown as typeof import('@xterm/headless');
@@ -107,6 +107,8 @@ class Tab {
   /** The dialog on screen right now (permission or question), read from the mirror terminal. */
   prompt: PromptView | null = null;
   login: { url: string; code: boolean } | null = null;
+  /** Claude Code's suggestion for your next message (dimmed in its input box). */
+  suggest: string | null = null;
   mode: PermissionMode | null = null;
   private detectTimer: NodeJS.Timeout | null = null;
   lastPrompt: string | null = null;
@@ -277,6 +279,7 @@ class Tab {
       question: this.question,
       prompt: this.prompt,
       login: this.login,
+      suggestion: this.status === 'done' || this.status === 'ready' ? this.suggest : null,
       mode: this.agent ? this.mode : null,
       model: this.agent ? this.modelLabel : null,
       modelId: this.rec.model ?? null,
@@ -568,6 +571,14 @@ class Tab {
     return out;
   }
 
+  /**
+   * Claude Code's suggestion for your next message: dimmed text in the empty input box, accepted there
+   * with Tab/Enter. Text you typed yourself is not dimmed, so it never counts as a suggestion.
+   */
+  suggestion(): string | null {
+    return this.term && this.rec.kind === 'claude' ? readSuggestion(this.term) : null;
+  }
+
   /** Switches the permission mode like Shift+Tab in the terminal, until the footer shows the wanted one. */
   async setMode(target: PermissionMode) {
     if (!this.proc || !this.agent) return false;
@@ -609,6 +620,12 @@ class Tab {
       const mode = this.rec.kind === 'agy' ? parseAgyMode(screen) : parseMode(screen);
       if (mode && mode !== this.mode) {
         this.mode = mode;
+        changed();
+      }
+      // Its suggestion for your next message (only while it waits for you).
+      const sug = this.rec.kind === 'claude' ? this.suggestion() : null;
+      if (sug !== this.suggest) {
+        this.suggest = sug;
         changed();
       }
       // First start / login: menus without the usual footer, and the sign-in link.

@@ -757,3 +757,31 @@
 .msg-user.queued.waiting .queued-note {
   color: var(--accent);
 }
+
+/* ---------- Claude Code's suggestion for the next message (phone) ---------- */
+
+.suggest-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  margin: 0 0 8px 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  background: transparent;
+  color: var(--text-2);
+  font: 13px var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+.suggest-chip svg {
+  flex: none;
+  color: var(--accent);
+}
+.suggest-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

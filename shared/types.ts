@@ -58,6 +58,8 @@ export interface TabView {
   prompt: PromptView | null;
   /** Claude Code shows its sign-in link (login with a subscription): open it, paste the code back. */
   login: { url: string; code: boolean } | null;
+  /** Claude Code's suggestion for your next message (Tab takes it), null when there is none. */
+  suggestion: string | null;
   /** Claude Code's permission mode as its footer shows it (null = not seen yet). */
   mode: PermissionMode | null;
   /** Model the session runs with, as the CLI shows it (e.g. "Opus 5.5", "Gemini 4 Argon (Medium)"). */
