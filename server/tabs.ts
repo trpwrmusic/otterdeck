@@ -51,7 +51,7 @@ import { AGY_BIN, AgyTranscriptTail, agyBusy, agyModeFlag, agyTranscript, agyMod
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
 import { TranscriptTail } from './transcript.ts';
-import { parseLogin, parseMode, parsePrompt, parseSetup, promptSummary, readSuggestion } from './prompt.ts';
+import { parseLogin, parseMode, parsePrompt, parseSetup, promptSummary, readStepCursor, readSuggestion } from './prompt.ts';
 import { data, newId, save, type ProjectRecord, type TabRecord } from './store.ts';
 
 const { Terminal } = headless as unknown as typeof import('@xterm/headless');
@@ -632,6 +632,8 @@ class Tab {
       const claude = this.rec.kind === 'claude';
       // The login menu (first start or /login) reads better as the German sign-in card.
       const p = (claude ? parseSetup(screen) : null) ?? parsePrompt(screen);
+      // Several questions: which one is open (its tab is highlighted in the bar).
+      if (p?.steps && this.term) p.stepAt = readStepCursor(this.term);
       const login = claude && !p ? parseLogin(screen) : null;
       if (JSON.stringify(p) === JSON.stringify(this.prompt) && JSON.stringify(login) === JSON.stringify(this.login)) return;
       this.prompt = p;
@@ -648,6 +650,19 @@ class Tab {
       }
       changed();
     }, 120);
+  }
+
+  /** Several questions: opens question `to` (steps.length = the review page) with ←/→ like in the terminal. */
+  async goStep(to: number) {
+    const p = this.prompt;
+    if (!p?.steps || p.stepAt == null || !this.proc) return false;
+    const target = Math.max(0, Math.min(p.steps.length, to));
+    const delta = target - p.stepAt;
+    for (let i = 0; i < Math.abs(delta); i++) {
+      this.proc?.write(delta > 0 ? '\x1b[C' : '\x1b[D');
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return true;
   }
 
   /** Types the code from the sign-in page into Claude's "Paste code here" field and confirms it. */

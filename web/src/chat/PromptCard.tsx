@@ -93,13 +93,31 @@ export function PromptCard({ tab, prompt, onShowTerminal }: { tab: TabView; prom
   return (
     <div className={`ask-card prompt ${prompt.kind}${prompt.multi ? ' multi' : ''}`}>
       {prompt.steps && (
-        // Several questions in a row: where you are.
-        <div className="ask-steps">
-          {prompt.steps.map((s) => (
-            <span key={s.label} className={`ask-step${s.done ? ' done' : ''}`}>
-              {s.done && <Check size={12} />} {s.label}
+        // Several questions: one tab each, plus the review page; a tap opens it.
+        <div className="ask-steps-wrap">
+          <div className="ask-steps" role="tablist">
+            {[...prompt.steps, { label: 'Prüfen', done: false }].map((s, i) => {
+              const review = i === prompt.steps!.length;
+              const on = prompt.stepAt === i;
+              return (
+                <button
+                  key={s.label + i}
+                  role="tab"
+                  aria-selected={on}
+                  className={`ask-step${s.done ? ' done' : ''}${on ? ' on' : ''}${review ? ' review' : ''}`}
+                  disabled={on || prompt.stepAt == null || busy !== null}
+                  onClick={() => api.goStep(tab.id, i)}
+                >
+                  {s.done && <Check size={12} strokeWidth={3} />} {s.label}
+                </button>
+              );
+            })}
+          </div>
+          {prompt.stepAt != null && (
+            <span className="ask-step-count">
+              {prompt.stepAt < prompt.steps.length ? `Frage ${prompt.stepAt + 1} von ${prompt.steps.length}` : `${prompt.steps.filter((s) => s.done).length} von ${prompt.steps.length} beantwortet`}
             </span>
-          ))}
+          )}
         </div>
       )}
       {title && <div className="ask-title">{title}</div>}

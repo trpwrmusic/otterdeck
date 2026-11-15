@@ -120,6 +120,7 @@ export const api = {
   choose: (id: string, n: number, text?: string) => call('POST', '/api/tabs/' + id + '/choose', { n, text }),
   keyToTab: (id: string, key: 'allow' | 'deny' | 'stop') => call('POST', `/api/tabs/${id}/key`, { key }),
   loginCode: (id: string, code: string) => call('POST', `/api/tabs/${id}/login`, { code }),
+  goStep: (id: string, to: number) => call('POST', `/api/tabs/${id}/step`, { to }),
   changes: (id: string, mode: CompareMode) => call<Changes>('GET', `/api/projects/${id}/changes?mode=${mode}`),
   diff: (id: string, path: string, mode: CompareMode) =>
     call<FileDiff>('GET', `/api/projects/${id}/diff?mode=${mode}&path=${encodeURIComponent(path)}`),

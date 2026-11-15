@@ -50,6 +50,8 @@ export interface PromptView {
   multi?: boolean;
   /** Several questions in a row: their short headers, answered ones done. */
   steps?: { label: string; done: boolean }[];
+  /** The active tab of those: index into steps, steps.length = the review page (null = unknown). */
+  stepAt?: number | null;
   /** The last page of several questions: what you answered, before it is sent. */
   review?: { question: string; answer: string }[];
 }

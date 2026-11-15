@@ -860,6 +860,11 @@ const server = http.createServer(async (req, res) => {
         const ok = await tabs.get(id)!.choose(Number(body.n), typeof body.text === 'string' ? body.text : undefined);
         return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Gerade ist keine Frage offen.' });
       }
+      // Several questions: switch to another one (or the review page).
+      if (parts[3] === 'step' && method === 'POST') {
+        const ok = await tabs.get(id)!.goStep(Number((await readBody(req)).to));
+        return json(res, ok ? 200 : 409, ok ? { ok } : { error: 'Gerade gibt es keine Fragen zum Wechseln.' });
+      }
       // The code from the sign-in page, typed into Claude's "Paste code here" field.
       if (parts[3] === 'login' && method === 'POST') {
         const code = String((await readBody(req)).code ?? '').trim();

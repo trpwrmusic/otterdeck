@@ -339,3 +339,29 @@ export function readSuggestion(t: Terminal): string | null {
   if (/^Try "/.test(text)) return null;
   return text || null;
 }
+
+/**
+ * Several questions: which tab of the question bar is active. Claude Code puts the active one on a
+ * coloured background. Returns its index (the questions, then "Submit" = the review page) or null.
+ */
+export function readStepCursor(t: Terminal): number | null {
+  const buf = t.buffer.active;
+  for (let i = t.rows - 1; i >= 0; i--) {
+    const row = buf.getLine(buf.viewportY + i);
+    const text = row?.translateToString(true) ?? '';
+    if (!row || !STEPS.test(text) || (text.match(/[☐☒]/g)?.length ?? 0) < 2) continue;
+    // Walk the bar: each tab starts with ☐/☒/✔; the active one has a background colour.
+    let index = -1;
+    for (let x = 0; x < t.cols; x++) {
+      const cell = row.getCell(x);
+      if (!cell) break;
+      const ch = cell.getChars();
+      if (/[☐☒✔]/.test(ch)) {
+        index++;
+        if (!cell.isBgDefault() || cell.isInverse()) return index;
+      }
+    }
+    return null;
+  }
+  return null;
+}
