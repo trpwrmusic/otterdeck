@@ -37,11 +37,21 @@ export interface PromptView {
   /** Permission: what it wants to run or change, as shown. */
   detail: string | null;
   question: string;
-  options: { n: number; label: string; description: string }[];
+  /**
+   * n = position in the list (the cursor moves through them in this order). checked: multiple choice
+   * box state. action: the unnumbered "Submit" under a multiple-choice list (goes on).
+   */
+  options: { n: number; label: string; description: string; checked?: boolean; action?: boolean }[];
   /** The option the cursor is on. */
   selected: number;
   /** Number of the "Type something." option, if the question takes free text. */
   freeText: number | null;
+  /** Several options can be ticked (Enter ticks, "Submit" goes on). */
+  multi?: boolean;
+  /** Several questions in a row: their short headers, answered ones done. */
+  steps?: { label: string; done: boolean }[];
+  /** The last page of several questions: what you answered, before it is sent. */
+  review?: { question: string; answer: string }[];
 }
 
 export interface TabView {

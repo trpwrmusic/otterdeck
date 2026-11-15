@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, CornerDownLeft, ExternalLink, SquareTerminal } from 'lucide-react';
+import { Check, Copy, CornerDownLeft, ExternalLink, SquareTerminal } from 'lucide-react';
 import type { PromptView, TabView } from '../../../shared/types';
 import { api } from '../api';
 
@@ -7,6 +7,7 @@ import { api } from '../api';
 export function germanQuestion(p: PromptView): string {
   const q = p.question.trim();
   if (/^Do you want to proceed\?$/i.test(q)) return 'Darf Claude das ausführen?';
+  if (/^Ready to submit your answers\?$/i.test(q)) return 'Antworten so abschicken?';
   // Antigravity (agy)
   if (/^Run this command\?$/i.test(q)) return 'Diesen Befehl ausführen?';
   if (/^Do you trust the contents of this project\?$/i.test(q)) return 'Vertraust du diesem Ordner?';
@@ -23,6 +24,9 @@ export function germanLabel(label: string): string {
   if (/^yes$/i.test(label)) return 'Ja';
   if (/^no$/i.test(label)) return 'Nein';
   if (/^type something\.?$/i.test(label)) return 'Eigene Antwort';
+  if (/^submit answers$/i.test(label)) return 'Abschicken';
+  if (/^(submit|next)$/i.test(label)) return 'Weiter';
+  if (/^cancel$/i.test(label)) return 'Abbrechen';
   // Antigravity (agy)
   if (/^yes, run command$/i.test(label)) return 'Ja, ausführen';
   if (/^no, cancel$/i.test(label)) return 'Nein, abbrechen';
@@ -59,7 +63,7 @@ export function PromptCard({ tab, prompt, onShowTerminal }: { tab: TabView; prom
     try {
       await api.choose(tab.id, n, answer);
     } finally {
-      setTimeout(() => setBusy(null), 600);
+      setTimeout(() => setBusy(null), prompt.multi ? 250 : 600);
     }
   };
 
@@ -83,13 +87,37 @@ export function PromptCard({ tab, prompt, onShowTerminal }: { tab: TabView; prom
   const isQuestion = prompt.kind === 'question';
   const title = prompt.title ? TITLES[prompt.title.toLowerCase()] ?? prompt.title : null;
 
+  const choices = prompt.options.filter((o) => !o.action);
+  const actions = prompt.options.filter((o) => o.action);
+
   return (
-    <div className={`ask-card prompt ${prompt.kind}`}>
+    <div className={`ask-card prompt ${prompt.kind}${prompt.multi ? ' multi' : ''}`}>
+      {prompt.steps && (
+        // Several questions in a row: where you are.
+        <div className="ask-steps">
+          {prompt.steps.map((s) => (
+            <span key={s.label} className={`ask-step${s.done ? ' done' : ''}`}>
+              {s.done && <Check size={12} />} {s.label}
+            </span>
+          ))}
+        </div>
+      )}
       {title && <div className="ask-title">{title}</div>}
       {prompt.detail && <pre className="ask-detail">{prompt.detail}</pre>}
+      {prompt.review && (
+        <div className="ask-review">
+          {prompt.review.map((r) => (
+            <div key={r.question} className="ask-review-row">
+              <span className="ask-review-q">{r.question}</span>
+              <span className="ask-review-a">{r.answer || 'keine Antwort'}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="ask-q">{germanQuestion(prompt)}</div>
+      {prompt.multi && <div className="ask-hint">Mehrere möglich. Antippen setzt oder entfernt den Haken.</div>}
       <div className={`ask-options${isQuestion || prompt.options.length > 2 ? ' list' : ''}`}>
-        {prompt.options.map((o, i) => {
+        {choices.map((o, i) => {
           const free = o.n === prompt.freeText;
           if (free && typing)
             return (
@@ -114,7 +142,11 @@ export function PromptCard({ tab, prompt, onShowTerminal }: { tab: TabView; prom
               disabled={busy !== null}
               onClick={() => (free ? setTyping(true) : pick(o.n))}
             >
-              <span className="ask-num">{o.n}</span>
+              {o.checked !== undefined ? (
+                <span className={`ask-box${o.checked ? ' on' : ''}`}>{o.checked && <Check size={13} strokeWidth={3} />}</span>
+              ) : (
+                <span className="ask-num">{o.n}</span>
+              )}
               <span className="ask-label">
                 {germanLabel(o.label)}
                 {o.description && <span className="ask-desc">{o.description}</span>}
@@ -123,6 +155,15 @@ export function PromptCard({ tab, prompt, onShowTerminal }: { tab: TabView; prom
           );
         })}
       </div>
+      {actions.length > 0 && (
+        <div className="ask-actions">
+          {actions.map((o) => (
+            <button key={o.n} className="btn primary" disabled={busy !== null} onClick={() => pick(o.n)}>
+              {germanLabel(o.label)}
+            </button>
+          ))}
+        </div>
+      )}
       <button className="ask-terminal" onClick={onShowTerminal}>
         <SquareTerminal size={13} /> Im Terminal ansehen
       </button>

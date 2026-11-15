@@ -9,8 +9,69 @@ const OPTION = /^\s*([❯>]\s*)?(\d{1,2})\.\s+(.+?)\s*$/;
 const FOOTER = /Esc to cancel|Enter to select|↑\/↓ to navigate|↑\/↓ Navigate/;
 const RULE = /^[\s─━╌┄—-]+$/;
 
+/** The unnumbered "Submit" under a multiple-choice list (it moves on to the next question). */
+const SUBMIT = /^\s*(❯\s*)?(Submit|Next|Done)\s*$/i;
+/** A multiple-choice box in front of an option: "[ ] Apfel", "[✔] Birne". */
+const BOX = /^\[([^\]])\]\s*/;
+/** The question bar of several questions: "←  ☒ Farbe  ☐ Früchte  ✔ Submit  →". */
+const STEPS = /^\s*←?\s*([☐☒✔].*?)\s*→?\s*$/;
+
+function parseSteps(text: string[]): PromptView['steps'] {
+  const bar = text.find((l) => STEPS.test(l) && (l.match(/[☐☒]/g)?.length ?? 0) >= 2);
+  if (!bar) return undefined;
+  const steps: NonNullable<PromptView['steps']> = [];
+  for (const m of bar.matchAll(/([☐☒✔])\s*([^☐☒✔→]+)/g)) {
+    const label = m[2].trim();
+    if (!label || /^submit$/i.test(label)) continue;
+    steps.push({ label, done: m[1] === '☒' });
+  }
+  return steps.length >= 2 ? steps : undefined;
+}
+
+/**
+ * The last page of several questions: "Review your answers", each question with its answer, then
+ * "Ready to submit your answers?" with Submit / Cancel. It has no "Esc to cancel" footer.
+ */
+function parseReview(lines: string[]): PromptView | null {
+  const head = lines.findIndex((l) => /^\s*Review your answers\s*$/i.test(l));
+  const ready = lines.findIndex((l) => /Ready to submit your answers\?/i.test(l));
+  if (head < 0 || ready < head) return null;
+  const review: NonNullable<PromptView['review']> = [];
+  for (let i = head + 1; i < ready; i++) {
+    const q = lines[i].match(/^\s*●\s*(.+)$/);
+    if (q) review.push({ question: q[1].trim(), answer: '' });
+    const a = lines[i].match(/^\s*→\s*(.+)$/);
+    if (a && review.length) review[review.length - 1].answer = a[1].trim();
+  }
+  const options: PromptView['options'] = [];
+  let selected = -1;
+  for (let i = ready + 1; i < lines.length; i++) {
+    const m = lines[i].match(OPTION);
+    if (!m) {
+      if (options.length && lines[i].trim() && !/^\s{4,}/.test(lines[i])) break;
+      continue;
+    }
+    options.push({ n: Number(m[2]), label: m[3].trim(), description: '' });
+    if (m[1]) selected = Number(m[2]);
+  }
+  if (options.length < 2 || selected < 0) return null;
+  return {
+    kind: 'question',
+    title: 'Antworten prüfen',
+    detail: null,
+    question: 'Antworten so abschicken?',
+    options,
+    selected,
+    freeText: null,
+    steps: parseSteps(lines.slice(Math.max(0, head - 3), head)),
+    review,
+  };
+}
+
 export function parsePrompt(screen: string[]): PromptView | null {
   const lines = screen.map((l) => l.replace(/\s+$/, ''));
+  const review = parseReview(lines);
+  if (review) return review;
   // The footer sits within the last few non-empty lines.
   let last = lines.length - 1;
   while (last >= 0 && !lines[last].trim()) last--;
@@ -18,60 +79,72 @@ export function parsePrompt(screen: string[]): PromptView | null {
   for (let i = last; i >= Math.max(0, last - 5); i--) if (FOOTER.test(lines[i])) footer = i;
   if (footer < 0) return null;
 
-  // Options: numbered lines above the footer, each followed by its indented description lines.
-  const options: PromptView['options'] = [];
-  let selected = -1;
+  // Options: numbered lines above the footer, each followed by its indented description lines. A
+  // multiple-choice list also has an unnumbered "Submit" between them. Options get their position
+  // in the list as number (the cursor moves through them in that order), `num` keeps what the screen shows.
+  interface Entry {
+    line: number;
+    num: number | null;
+    label: string;
+    cursor: boolean;
+    action: boolean;
+  }
+  let entries: Entry[] = [];
   let top = footer;
   for (let i = footer - 1; i >= 0 && i >= footer - 40; i--) {
     const l = lines[i];
     if (!l.trim() || RULE.test(l)) continue;
+    const sub = l.match(SUBMIT);
+    if (sub && entries.length) {
+      entries.unshift({ line: i, num: null, label: sub[2], cursor: !!sub[1], action: true });
+      top = i;
+      continue;
+    }
     const m = l.match(OPTION);
     if (m) {
-      options.unshift({ n: Number(m[2]), label: m[3].replace(/\s+·\s+.*$/, '').trim(), description: '' });
-      if (m[1]) selected = Number(m[2]);
+      entries.unshift({ line: i, num: Number(m[2]), label: m[3].replace(/\s+·\s+.*$/, '').trim(), cursor: !!m[1], action: false });
       top = i;
       continue;
     }
     // Indented lines between options are descriptions (read below); anything else ends the menu.
-    if (options.length && /^\s{4,}\S/.test(l)) continue;
-    if (options.length) break;
+    if (entries.length && /^\s{4,}\S/.test(l)) continue;
+    if (entries.length) break;
   }
   // Menus without numbers ("❯ No, exit" / "  Yes, I trust this folder"): the lines right above the
   // footer, one marked with ❯, the others indented the same way.
-  if (options.length < 2) {
-    options.length = 0;
-    selected = -1;
-    const block: { i: number; label: string; sel: boolean }[] = [];
+  if (entries.filter((e) => !e.action).length < 2) {
+    entries = [];
+    const block: Entry[] = [];
     let i = footer - 1;
     while (i >= 0 && !lines[i].trim()) i--;
     for (; i >= 0 && i >= footer - 12; i--) {
       const m = lines[i].match(/^\s*([❯>]\s+|\s{2,})(\S.*)$/);
       if (!m || !lines[i].trim() || /^\d{1,2}\./.test(m[2])) break;
-      block.unshift({ i, label: m[2].trim(), sel: /[❯>]/.test(m[1]) });
+      block.unshift({ line: i, num: null, label: m[2].trim(), cursor: /[❯>]/.test(m[1]), action: false });
     }
-    if (block.length >= 2 && block.filter((b) => b.sel).length === 1) {
-      block.forEach((b, k) => {
-        options.push({ n: k + 1, label: b.label, description: '' });
-        if (b.sel) selected = k + 1;
-      });
-      top = block[0].i;
+    if (block.length >= 2 && block.filter((b) => b.cursor).length === 1) {
+      entries = block;
+      top = block[0].line;
     }
   }
-  if (options.length < 2 || selected < 0) return null;
+  if (entries.filter((e) => !e.action).length < 2 || !entries.some((e) => e.cursor)) return null;
 
-  // Descriptions: the indented lines right under each option line.
-  const optionLine = new Map<number, number>();
-  for (let i = top; i < footer; i++) {
-    const m = lines[i].match(OPTION);
-    if (m) optionLine.set(Number(m[2]), i);
-  }
-  for (const o of options) {
-    const at = optionLine.get(o.n);
-    if (at === undefined) continue;
+  const options: PromptView['options'] = entries.map((e, k) => {
+    const box = e.action ? null : e.label.match(BOX);
+    // Descriptions: the indented lines right under an option (not the "Submit" line).
     const desc: string[] = [];
-    for (let i = at + 1; i < footer && !OPTION.test(lines[i]) && /^\s{4,}\S/.test(lines[i]); i++) desc.push(lines[i].trim());
-    o.description = desc.join(' ');
-  }
+    if (e.num !== null)
+      for (let i = e.line + 1; i < footer && !OPTION.test(lines[i]) && !SUBMIT.test(lines[i]) && /^\s{4,}\S/.test(lines[i]); i++)
+        desc.push(lines[i].trim());
+    return {
+      n: k + 1,
+      label: box ? e.label.slice(box[0].length).trim() : e.label,
+      description: desc.join(' '),
+      ...(box ? { checked: box[1].trim() !== '' } : {}),
+      ...(e.action ? { action: true } : {}),
+    };
+  });
+  const selected = entries.findIndex((e) => e.cursor) + 1;
 
   // Above the options: the question, and for permissions the tool, its summary and the command.
   const above: string[] = [];
@@ -85,19 +158,29 @@ export function parsePrompt(screen: string[]): PromptView | null {
     .filter((l) => l.trim() && !/^[╌┄]{6,}/.test(l.trim()))
     .map((l) => l.trim().replace(/^[│┃|]\s?/, ''))
     .filter(Boolean);
-  const isQuestion = options.some((o) => /^type something/i.test(o.label)) || text.some((l) => /^[☐☒✔]/.test(l));
-  const question = [...text].reverse().find((l) => /\?$/.test(l)) ?? text.at(-1) ?? '';
-  const header = text.filter((l) => l !== question && !/^Tip:/i.test(l));
+  const steps = parseSteps(text);
+  const multi = options.some((o) => o.checked !== undefined);
+  const isQuestion = multi || !!steps || options.some((o) => /^type something/i.test(o.label)) || text.some((l) => /^[☐☒✔]/.test(l));
+  const body = text.filter((l) => !STEPS.test(l));
+  const question = [...body].reverse().find((l) => /\?$/.test(l)) ?? body.at(-1) ?? '';
+  const header = body.filter((l) => l !== question && !/^Tip:/i.test(l));
   const freeText = options.find((o) => /^type something/i.test(o.label))?.n ?? null;
+  const current = steps ? text.find((l) => STEPS.test(l)) : null;
+  // The question's short header: in the bar the one not yet answered first, else "☐ Farbe" above it.
+  const title = isQuestion
+    ? (steps && current ? null : header.find((l) => /^[☐☒✔]/.test(l))?.replace(/^[☐☒✔]\s*/, '')) ?? null
+    : header[0] ?? null;
 
   return {
     kind: isQuestion ? 'question' : 'permission',
-    title: isQuestion ? header.find((l) => /^[☐☒✔]/.test(l))?.replace(/^[☐☒✔]\s*/, '') ?? null : header[0] ?? null,
+    title,
     detail: isQuestion ? null : header.slice(1).join('\n') || null,
     question,
     options: options.filter((o) => !/^chat about this/i.test(o.label)),
     selected,
     freeText,
+    ...(multi ? { multi: true } : {}),
+    ...(steps ? { steps } : {}),
   };
 }
 

@@ -1914,3 +1914,72 @@ button.model-row:hover,
 .laptop-more:hover {
   color: var(--text);
 }
+
+/* ---------- several questions, multiple choice, review page ---------- */
+
+.ask-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ask-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.ask-step.done {
+  color: var(--text);
+}
+.ask-step.done svg {
+  color: var(--plus);
+}
+.ask-hint {
+  margin-top: -6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ask-box {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  color: var(--on-primary);
+}
+.ask-box.on {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.ask-card.multi .ask-option.first {
+  background: var(--active);
+  color: var(--text);
+}
+.ask-review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.ask-review-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+}
+.ask-review-q {
+  color: var(--muted);
+}
+.ask-review-a {
+  font-weight: 500;
+  color: var(--text);
+}
