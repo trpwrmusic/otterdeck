@@ -192,7 +192,10 @@ export function ChatView({ tab, onShowTerminal }: Props) {
   useEffect(() => {
     if (!pending.length) return;
     const sent = new Set(
-      items.flatMap((i) => (i.k === 'user' ? [i.text.trim()] : i.k === 'shell' ? ['!' + i.cmd.trim(), '! ' + i.cmd.trim()] : [])),
+      // Slash commands (/login, /model …) come back as a note, not as your message.
+      items.flatMap((i) =>
+        i.k === 'user' ? [i.text.trim()] : i.k === 'shell' ? ['!' + i.cmd.trim(), '! ' + i.cmd.trim()] : i.k === 'note' ? [i.text.trim()] : [],
+      ),
     );
     const left = pending.filter((p) => !sent.has(p.trim()));
     if (left.length !== pending.length) setPending(left);

@@ -134,7 +134,10 @@ export function parseMode(screen: string[]): PermissionMode | null {
 export function parseSetup(screen: string[]): PromptView | null {
   const lines = screen.map((l) => l.replace(/\s+$/, ''));
   const filled = lines.filter((l) => l.trim());
-  const at = lines.findIndex((l) => /Select login method:|Choose the text style/i.test(l));
+  // Only a menu at the bottom of the screen (where dialogs sit), not those words somewhere in a chat.
+  let bottom = lines.length - 1;
+  while (bottom >= 0 && !lines[bottom].trim()) bottom--;
+  const at = lines.findIndex((l, i) => i >= bottom - 22 && /^\s*(Select login method:|Choose the text style)/i.test(l));
   if (at >= 0) {
     const login = /login method/i.test(lines[at]);
     const options: PromptView['options'] = [];

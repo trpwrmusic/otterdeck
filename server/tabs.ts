@@ -630,7 +630,8 @@ class Tab {
       }
       // First start / login: menus without the usual footer, and the sign-in link.
       const claude = this.rec.kind === 'claude';
-      const p = parsePrompt(screen) ?? (claude ? parseSetup(screen) : null);
+      // The login menu (first start or /login) reads better as the German sign-in card.
+      const p = (claude ? parseSetup(screen) : null) ?? parsePrompt(screen);
       const login = claude && !p ? parseLogin(screen) : null;
       if (JSON.stringify(p) === JSON.stringify(this.prompt) && JSON.stringify(login) === JSON.stringify(this.login)) return;
       this.prompt = p;
