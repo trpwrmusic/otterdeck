@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, ROOT } from './config.ts';
+import { nextRoot } from './release.ts';
 
 const WATCHED = ['server', 'shared', 'hook'].map((d) => path.join(ROOT, d));
 const UI_ENTRY = path.join(ROOT, 'dist', 'web', 'index.html');
@@ -69,10 +70,18 @@ export function watchForUpdates(onChange: () => void) {
  * (see the listen retry in index.ts).
  */
 export function respawn(beforeExit: () => void) {
+  // Under systemd (a server) the service starts us again, from the version in `current`.
+  if (process.env.INVOCATION_ID) {
+    beforeExit();
+    process.exit(0);
+  }
+  const root = nextRoot();
   const log = fs.openSync(path.join(DATA_DIR, 'server.log'), 'a');
-  const args = [...process.execArgv.filter((a) => a !== '--watch'), ...process.argv.slice(1)];
+  const script = root === ROOT ? process.argv.slice(1) : [path.join(root, 'server', 'index.ts'), ...process.argv.slice(2)];
+  // --import tsx is found from the working folder, i.e. in the new version's node_modules.
+  const args = [...process.execArgv.filter((a) => a !== '--watch'), ...script];
   const child = spawn(process.execPath, args, {
-    cwd: ROOT,
+    cwd: root,
     detached: true,
     windowsHide: true,
     stdio: ['ignore', log, log],

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import type http from 'node:http';
-import { PORT } from './config.ts';
+import { PORT, SERVER_MODE, SETTINGS, which } from './config.ts';
 import type { RemoteView } from '../shared/types.ts';
 
 // Phone access over Tailscale. Otterdeck itself keeps listening on 127.0.0.1 only; `tailscale serve`
@@ -9,15 +9,15 @@ import type { RemoteView } from '../shared/types.ts';
 // identity (Tailscale-User-Login). Requests coming that way are accepted only from the owner of this
 // machine; nothing is reachable from the internet (that would be Funnel, which we never turn on).
 
-const TAILSCALE =
-  process.env.OTTER_TAILSCALE ||
+export const FOUND_TAILSCALE =
   (process.platform === 'win32'
     ? ['C:\\Program Files\\Tailscale\\tailscale.exe', 'C:\\Program Files (x86)\\Tailscale\\tailscale.exe'].find((f) => fs.existsSync(f))
-    : ['/usr/bin/tailscale', '/usr/local/bin/tailscale'].find((f) => fs.existsSync(f)));
+    : ['/usr/bin/tailscale', '/usr/local/bin/tailscale'].find((f) => fs.existsSync(f))) ?? which('tailscale');
+const TAILSCALE = SETTINGS.tailscaleCli || FOUND_TAILSCALE;
 /** A tailscaled running without root has its own socket (e.g. on mc-panel). */
-const SOCKET = process.env.OTTER_TAILSCALE_SOCKET ? ['--socket', process.env.OTTER_TAILSCALE_SOCKET] : [];
+const SOCKET = SETTINGS.tailscaleSocket ? ['--socket', SETTINGS.tailscaleSocket] : [];
 /** HTTPS port inside the tailnet: 443 on the PC; on a server where 443 is taken (Funnel) e.g. 4747. */
-const SERVE_PORT = Number(process.env.OTTER_SERVE_PORT || 443);
+export const SERVE_PORT = SETTINGS.servePort || (SERVER_MODE ? 4747 : 443);
 
 interface Info {
   installed: boolean;

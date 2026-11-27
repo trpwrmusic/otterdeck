@@ -1,0 +1,56 @@
+# A tag like v0.2.0 builds one package per system and publishes them as a GitHub release.
+# Installed Otterdecks find it there (server/release.ts), the installers download it.
+#
+#   git tag -a v0.2.0 -m "Was neu ist …" && git push origin v0.2.0
+#
+# The tag message becomes the release notes shown in Otterdeck's settings.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    strategy:
+      matrix:
+        # The oldest supported Ubuntu keeps the Linux package working on older systems (glibc).
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Version matches the tag
+        shell: bash
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: node bin/pack.mjs release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pack-${{ matrix.os }}
+          path: release/*.tar.gz
+
+  publish:
+    needs: pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" > notes.md
+          gh release create "${GITHUB_REF_NAME}" release/*.tar.gz --title "Otterdeck ${GITHUB_REF_NAME#v}" --notes-file notes.md

@@ -6,6 +6,8 @@ import { AddProject } from './AddProject';
 import { ChatsPage } from './ChatsPage';
 import { CommandPalette, type Command } from './CommandPalette';
 import { ProjectPane } from './ProjectPane';
+import { SettingsPage } from './SettingsPage';
+import { SetupPage } from './SetupPage';
 import { fullName, Sidebar, sidebarOrder } from './Sidebar';
 import { shortcutFor } from './shortcuts';
 
@@ -16,7 +18,7 @@ export function App() {
   const [selected, setSelected] = usePersisted<string | null>('otter.project', null);
   /** Per project: which tab is in front (null = start page). */
   const [activeTabs, setActiveTabs] = usePersisted<Record<string, string | null>>('otter.tabs', {});
-  const [view, setView] = useState<'project' | 'add' | 'chats'>('project');
+  const [view, setView] = useState<'project' | 'add' | 'chats' | 'settings'>('project');
   const adding = view !== 'project';
   const setAdding = (on: boolean) => setView(on ? 'add' : 'project');
   const [dragging, setDragging] = useState(false);
@@ -296,6 +298,7 @@ export function App() {
     list.push(
       { id: 'a:chats', group: 'Aktionen', title: 'Alle Chats durchsuchen', run: () => setView('chats') },
       { id: 'a:add', group: 'Aktionen', title: 'Projekt hinzufügen', run: () => setView('add') },
+      { id: 'a:settings', group: 'Aktionen', title: 'Einstellungen', run: () => setView('settings') },
     );
     if (state!.update.available) list.push({ id: 'a:restart', group: 'Aktionen', title: 'Otterdeck neu starten (neue Version)', run: () => api.restart() });
     return list;
@@ -322,6 +325,7 @@ export function App() {
         view={!project && view === 'project' ? 'add' : view}
         onAdd={() => setView('add')}
         onChats={() => setView('chats')}
+        onSettings={() => setView('settings')}
         dragging={dragging}
         onDropChat={dropChat}
         notifyPermission={permission}
@@ -340,7 +344,11 @@ export function App() {
           if (next) openTab(next.id);
         }}
       />
-      {view === 'chats' ? (
+      {state.setup ? (
+        <SetupPage state={state} />
+      ) : view === 'settings' ? (
+        <SettingsPage state={state} />
+      ) : view === 'chats' ? (
         <ChatsPage
           projects={state.projects}
           accounts={state.accounts}

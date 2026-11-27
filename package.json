@@ -1,7 +1,7 @@
 {
   "name": "otterdeck",
-  "version": "0.1.0",
-  "description": "Ein Zuhause für deine Claude-Code-Sitzungen unter Windows",
+  "version": "0.2.0",
+  "description": "Ein Zuhause für deine Claude-Code-Sitzungen, unter Windows und Linux",
   "scripts": {
     "dev": "concurrently -k -n server,web -c auto \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "node --import tsx --watch server/index.ts",

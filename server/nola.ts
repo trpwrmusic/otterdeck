@@ -1,23 +1,24 @@
-// NOLA (Samu's Kanban app) inside Otterdeck: the project's NOLA card and to-dos in the side panel,
+// NOLA (Samuel's Kanban app) inside Otterdeck: the project's NOLA card and to-dos in the side panel,
 // handing a task to Claude, NOLA tasks in the search.
 //
-// All calls go through the helper ~\bin\nola.ps1, which reads the API key from the
+// All calls go through the helper ~\bin\nola.ps1 (path in the settings), which reads the API key from the
 // Windows credential store; Otterdeck never sees the key. Only on the laptop (Windows).
 
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { HOME, IS_WIN } from './config.ts';
+import { HOME, IS_WIN, SETTINGS } from './config.ts';
 import { newId } from './store.ts';
 import type { NolaTask, NolaTaskDetail } from '../shared/types.ts';
 
-const HELPER = process.env.OTTER_NOLA_HELPER || path.join(HOME, 'bin', 'nola.ps1');
-export const NOLA_AVAILABLE = IS_WIN && fs.existsSync(HELPER);
+export const FOUND_NOLA = path.join(HOME, 'bin', 'nola.ps1');
+const HELPER = SETTINGS.nolaHelper || FOUND_NOLA;
+export const NOLA_AVAILABLE = IS_WIN && SETTINGS.nolaEnabled && fs.existsSync(HELPER);
 
 /** Boards Otterdeck reads: project cards and the personal to-do list. */
-const PROJECT_BOARD = Number(process.env.OTTER_NOLA_PROJECTS || 5);
-const TODO_BOARDS = (process.env.OTTER_NOLA_TODOS || '6,2').split(',').map(Number).filter(Boolean);
+const PROJECT_BOARD = SETTINGS.nolaProjectsBoard || 5;
+const TODO_BOARDS = SETTINGS.nolaTodoBoards.split(',').map(Number).filter(Boolean);
 
 export function nola(method: string, apiPath: string, body?: unknown): Promise<any> {
   return new Promise((resolve, reject) => {

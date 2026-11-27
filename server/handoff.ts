@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type http from 'node:http';
-import { CLAUDE_TOKEN_FILE, DATA_DIR, DEFAULT_CLAUDE_DIR, HOME, SERVER_MODE } from './config.ts';
+import { CLAUDE_TOKEN_FILE, DATA_DIR, DEFAULT_CLAUDE_DIR, HOME, SERVER_MODE, SETTINGS } from './config.ts';
 import { data, newId, save, type HandoffRecord } from './store.ts';
 import { closeTab, createTab, tabs } from './tabs.ts';
 import { encodeProjectDir } from './claudeData.ts';
@@ -25,7 +25,8 @@ import type { HandoffView, ServerView } from '../shared/types.ts';
 
 const HANDOFF_DIR = path.join(DATA_DIR, 'handoff');
 /** Server: where handed-over tasks get their own checkout. */
-const TASK_DIR = process.env.OTTER_TASK_DIR || path.join(HOME, 'otter-tasks');
+export const FOUND_TASK_DIR = path.join(HOME, 'otter-tasks');
+const TASK_DIR = SETTINGS.taskDir || FOUND_TASK_DIR;
 
 function git(cwd: string, args: string[], env?: Record<string, string>): Promise<string> {
   return new Promise((resolve, reject) => {

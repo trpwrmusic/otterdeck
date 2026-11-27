@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { HOME } from './config.ts';
+import { settings } from './settings.ts';
 import { encodeProjectDir } from './claudeData.ts';
 
 const same = (a: string, b: string) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
@@ -55,7 +56,7 @@ function mergeInto(from: string, shared: string, projectName: string) {
 /** Makes sure Claude in `projectPath` uses the home folder's memory. Never throws. */
 export function shareMemory(projectPath: string, accountDir: string) {
   try {
-    if (same(projectPath, HOME)) return;
+    if (!settings().sharedMemory || same(projectPath, HOME)) return;
     const shared = path.join(accountDir, 'projects', encodeProjectDir(HOME), 'memory');
     const own = path.join(accountDir, 'projects', encodeProjectDir(projectPath), 'memory');
     fs.mkdirSync(shared, { recursive: true });

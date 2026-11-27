@@ -2,19 +2,31 @@
 // otter – starts Otterdeck in the background (if it isn't running) and opens its window.
 //
 //   otter            open Otterdeck
+//   otter background start the server only (autostart), no window
 //   otter stop       stop the server (ends all sessions)
 //   otter status     is it running?
 //   otter restart    restart into the current code once no Claude is working
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const PORT = Number(process.env.OTTER_PORT || 4747);
-const URL = `http://127.0.0.1:${PORT}`;
-const DATA = path.join(process.env.APPDATA || '', 'Otterdeck');
+const IS_WIN = process.platform === 'win32';
+// Same folder as server/config.ts.
+const DATA = process.env.OTTER_DATA
+  ? path.resolve(process.env.OTTER_DATA)
+  : IS_WIN
+    ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Otterdeck')
+    : path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'otterdeck');
 const LOG = path.join(DATA, 'server.log');
+let saved = {};
+try {
+  saved = JSON.parse(fs.readFileSync(path.join(DATA, 'settings.json'), 'utf8'));
+} catch {}
+const PORT = Number(process.env.OTTER_PORT || saved.port || 4747);
+const URL = `http://127.0.0.1:${PORT}`;
 
 async function running() {
   try {
@@ -46,6 +58,10 @@ function findBrowser() {
 }
 
 function openWindow() {
+  if (!IS_WIN) {
+    spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [URL], { detached: true, stdio: 'ignore' }).unref();
+    return;
+  }
   const browser = findBrowser();
   if (browser) {
     spawn(browser, [`--app=${URL}`], { detached: true, stdio: 'ignore' }).unref();
@@ -80,6 +96,7 @@ if (cmd === 'status') {
       process.exit(1);
     }
   }
-  if (process.env.OTTER_NO_WINDOW !== '1') openWindow();
+  const noWindow = cmd === 'background' || process.env.OTTER_NO_WINDOW === '1' || (process.env.OTTER_NO_WINDOW === undefined && saved.openWindow === false);
+  if (!noWindow) openWindow();
   else console.log(`Otterdeck läuft auf ${URL}`);
 }

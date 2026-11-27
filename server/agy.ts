@@ -13,13 +13,14 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ChatItem, Conversation, PermissionMode } from '../shared/types.ts';
 import { describeTool } from './hooks.ts';
+import { SETTINGS } from './config.ts';
 import { TranscriptTail } from './transcript.ts';
 
-export const AGY_BIN =
-  process.env.OTTER_AGY ||
-  (process.platform === 'win32'
+export const FOUND_AGY =
+  process.platform === 'win32'
     ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
-    : path.join(os.homedir(), '.local', 'bin', 'agy'));
+    : path.join(os.homedir(), '.local', 'bin', 'agy');
+export const AGY_BIN = SETTINGS.agyBin || FOUND_AGY;
 export const AGY_AVAILABLE = fs.existsSync(AGY_BIN);
 
 const AGY_DIR = path.join(os.homedir(), '.gemini', 'antigravity-cli');

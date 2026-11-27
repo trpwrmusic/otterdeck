@@ -1,12 +1,13 @@
 import http from 'node:http';
 import tls from 'node:tls';
+import { SETTINGS } from './config.ts';
 
 // Requests from this machine to other devices in the tailnet. Normally a plain fetch. A tailscaled in
 // userspace mode (no root, e.g. mc-panel) cannot route the system's traffic into the tailnet; it then
-// offers an HTTP proxy (--outbound-http-proxy-listen), named in OTTER_TAILNET_PROXY (e.g.
+// offers an HTTP proxy (--outbound-http-proxy-listen), named in the settings (OTTER_TAILNET_PROXY, e.g.
 // http://127.0.0.1:1055). We tunnel through it with CONNECT; TLS stays end to end.
 
-const PROXY = process.env.OTTER_TAILNET_PROXY ? new URL(process.env.OTTER_TAILNET_PROXY) : null;
+const PROXY = SETTINGS.tailnetProxy ? new URL(SETTINGS.tailnetProxy) : null;
 
 export interface TailnetResponse {
   ok: boolean;

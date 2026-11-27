@@ -3,16 +3,16 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { AppState, EventMsg, ProjectView, TermClientMsg } from '../shared/types.ts';
-import { DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, HOOK_TOKEN, HOST, ICON_DIR, PORT, SERVER_MODE, UPLOAD_DIR, WEB_DIST, HOME } from './config.ts';
+import type { AppState, EventMsg, ProjectView, SettingsView, TermClientMsg } from '../shared/types.ts';
+import { claudeBin, DATA_DIR, DEFAULT_CLAUDE_DIR, DEV, DEV_WEB_PORT, findClaude, FOUND_SHELL, HOOK_TOKEN, HOST, ICON_DIR, PORT, SERVER_MODE, UPLOAD_DIR, WEB_DIST, HOME } from './config.ts';
 import { recordUsage, usageViews } from './usage.ts';
-import { bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
-import { AGY_AVAILABLE, agyConversations } from './agy.ts';
+import { FOUND_TASK_DIR, bringBack, closeTask, connectToken, handOff, pollServer, receiveUpload, resultBundle, resultTranscript, serverInfo, serverView, setServer, startTask, storeToken } from './handoff.ts';
+import { AGY_AVAILABLE, FOUND_AGY, agyConversations } from './agy.ts';
 import { laptopView, pollLaptopNow, startLaptopPoll } from './laptop.ts';
 import { models, validModel } from './models.ts';
 import { continuePrompt, exportChat } from './continue.ts';
-import { NOLA_AVAILABLE, projectFor, claudePrompt, moveTask, projectTasks, searchTasks, setSubtask, taskDetail } from './nola.ts';
-import { isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
+import { FOUND_NOLA, NOLA_AVAILABLE, projectFor, claudePrompt, moveTask, projectTasks, searchTasks, setSubtask, taskDetail } from './nola.ts';
+import { FOUND_TAILSCALE, isRemote, refreshRemote, remoteAllowed, remoteView, setRemote, trackDevice } from './remote.ts';
 import { allChats, attachChat, conversations, lastChatAt, listAccounts, slashCommands, suggestions } from './claudeData.ts';
 import { changes, fileDiff, listDir, readFile, safeJoin } from './git.ts';
 import { writeHookSettings } from './hooks.ts';
@@ -21,6 +21,9 @@ import { data, flush, newId, samePath, save } from './store.ts';
 import { EFFORTS, closeTab, createTab, events, killAll, markSeen, restartTab, resumePending, tabs } from './tabs.ts';
 import { respawn, update, version, watchForUpdates } from './update.ts';
 import { fileEvents, keepWatching } from './watch.ts';
+import { ENV, envFixed, needsRestart, savedSettings, settings, updateSettings } from './settings.ts';
+import { checkForUpdate, installUpdate, updatable, updateView, watchReleases } from './release.ts';
+import { autostartOn, setAutostart } from './autostart.ts';
 
 writeHookSettings();
 
@@ -143,6 +146,46 @@ function state(): AppState {
     home: HOME,
     version: version(),
     update: { ...update },
+    setup: !settings().setupDone,
+    release: release(),
+  };
+}
+
+function release(): AppState['release'] {
+  const u = updateView();
+  if (u.ready) return { latest: u.latest, ready: u.ready };
+  return updatable() ? { latest: u.latest, ready: null } : null;
+}
+
+// ---------- settings page ----------
+
+let claudeVersion: string | null = null;
+function readClaudeVersion() {
+  execFile(claudeBin(), ['--version'], { timeout: 10_000, windowsHide: true }, (err, out) => {
+    claudeVersion = err ? null : String(out).trim().split(/\s+/)[0] || null;
+  });
+}
+readClaudeVersion();
+
+function settingsView(): SettingsView {
+  const fixed: SettingsView['fixed'] = {};
+  for (const k of envFixed()) fixed[k] = ENV[k];
+  return {
+    values: { ...savedSettings(), autostart: autostartOn() },
+    fixed,
+    restart: needsRestart(),
+    found: {
+      claude: ((f) => (fs.existsSync(f) ? f : null))(findClaude()),
+      claudeVersion: fs.existsSync(claudeBin()) ? claudeVersion : null,
+      shell: FOUND_SHELL,
+      tailscale: FOUND_TAILSCALE ?? null,
+      agy: fs.existsSync(FOUND_AGY) ? FOUND_AGY : null,
+      nolaHelper: FOUND_NOLA,
+      taskDir: FOUND_TASK_DIR,
+    },
+    platform: process.platform,
+    dataDir: DATA_DIR,
+    update: updateView(),
   };
 }
 
@@ -492,6 +535,36 @@ const server = http.createServer(async (req, res) => {
       const cont = typeof body.tab === 'string' && typeof body.prompt === 'string' ? { tab: body.tab, prompt: body.prompt } : undefined;
       requestRestart(cont, !!body.now);
       return json(res, 200, { ok: true });
+    }
+    // /api/settings – the settings page and the setup at first start
+    if (url.pathname === '/api/settings') {
+      if (method === 'POST') {
+        const body = await readBody(req);
+        try {
+          if (typeof body.autostart === 'boolean') await setAutostart(body.autostart);
+        } catch (err) {
+          return json(res, 400, { error: 'Autostart: ' + (err as Error).message });
+        }
+        updateSettings(body);
+        if (body.recheck) readClaudeVersion();
+        events.emit('change');
+      }
+      return json(res, 200, settingsView());
+    }
+    if (url.pathname === '/api/updates/check' && method === 'POST') {
+      await checkForUpdate();
+      events.emit('change');
+      return json(res, 200, settingsView());
+    }
+    if (url.pathname === '/api/updates/install' && method === 'POST') {
+      try {
+        await installUpdate();
+      } catch (err) {
+        return json(res, 400, { error: (err as Error).message });
+      }
+      json(res, 200, settingsView());
+      // Starts the new version as soon as no Claude is in the middle of something (after the answer).
+      return void setTimeout(() => requestRestart(), 300);
     }
     if (url.pathname === '/api/shutdown' && method === 'POST') {
       json(res, 200, { ok: true });
@@ -1001,6 +1074,7 @@ function shutdown() {
 // ---------- restart into a new version ----------
 
 watchForUpdates(() => events.emit('change'));
+watchReleases(() => events.emit('change'));
 let restartTimer: NodeJS.Timeout | null = null;
 
 /**

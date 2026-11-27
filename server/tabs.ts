@@ -6,7 +6,7 @@ import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket } from 'ws';
 import type { ChatServerMsg, PermissionMode, PromptView, TabStatus, TabView, TermServerMsg } from '../shared/types.ts';
-import { CLAUDE_BIN, CLAUDE_TOKEN_FILE, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, IS_WIN, PORT, SERVER_MODE, SHELL_BIN, UPLOAD_DIR } from './config.ts';
+import { claudeBin, CLAUDE_TOKEN_FILE, DEFAULT_CLAUDE_DIR, HOME, HOOK_TOKEN, HOST, IS_WIN, PORT, SERVER_MODE, SHELL_BIN, UPLOAD_DIR } from './config.ts';
 
 /** Claude Code's effort levels Otterdeck offers. */
 export const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
@@ -50,6 +50,7 @@ import { HOOK_SETTINGS, describePermission, describeTool, shorten } from './hook
 import { AGY_BIN, AgyTranscriptTail, agyBusy, agyModeFlag, agyTranscript, agyModelLabel, agyTitle, describeAgyTool, lastConversationFor, parseAgyMode } from './agy.ts';
 import { encodeProjectDir } from './claudeData.ts';
 import { shareMemory } from './memory.ts';
+import { settings } from './settings.ts';
 import { TranscriptTail } from './transcript.ts';
 import { parseLogin, parseMode, parsePrompt, parseSetup, promptSummary, readStepCursor, readSuggestion } from './prompt.ts';
 import { data, newId, save, type ProjectRecord, type TabRecord } from './store.ts';
@@ -326,8 +327,9 @@ class Tab {
         } catch {}
       }
       args = ['--settings', HOOK_SETTINGS, '--add-dir', UPLOAD_DIR, '--append-system-prompt', CHAT_NOTE];
-      // For tests, e.g. OTTER_CLAUDE_ARGS="--permission-mode default" to see permission prompts.
-      if (process.env.OTTER_CLAUDE_ARGS) args.push(...process.env.OTTER_CLAUDE_ARGS.split(/\s+/).filter(Boolean));
+      // Extra arguments from the settings; for tests e.g. OTTER_CLAUDE_ARGS="--permission-mode default".
+      const extra = settings().claudeArgs;
+      if (extra) args.push(...extra.split(/\s+/).filter(Boolean));
       // Our names for the modes (as the footer shows them) → Claude's --permission-mode values.
       const mode = this.rec.mode === 'bypass' ? 'bypassPermissions' : this.rec.mode;
       if (mode && /^(default|acceptEdits|plan|auto|bypassPermissions)$/.test(mode)) args.push('--permission-mode', mode);
@@ -337,7 +339,7 @@ class Tab {
       if (resume) args.push('--resume', resume);
       // A first message (e.g. review comments) starts the conversation right away.
       if (opts.prompt) args.push('--', opts.prompt);
-      file = CLAUDE_BIN;
+      file = claudeBin();
     } else if (this.rec.kind === 'agy') {
       // Antigravity CLI: same terminal, its own flags. It signs in with your Google account (keyring).
       file = AGY_BIN;
@@ -352,7 +354,7 @@ class Tab {
     } else if (this.rec.setupToken) {
       // Always the default account (~/.claude): that is the one the server works with.
       delete env.CLAUDE_CONFIG_DIR;
-      file = CLAUDE_BIN;
+      file = claudeBin();
       args = ['setup-token'];
       this.title = 'Server verbinden';
     } else {

@@ -42,11 +42,13 @@
     padding-left: 48px;
   }
   .pane.add,
-  .pane.chats {
+  .pane.chats,
+  .pane.settings {
     margin-top: 56px;
   }
   .pane.add,
   .pane.chats,
+  .pane.settings,
   .sheet {
     margin-left: var(--sheet-inset);
   }

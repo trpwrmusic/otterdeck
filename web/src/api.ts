@@ -16,6 +16,8 @@ import type {
   NolaTaskDetail,
   ModelChoice,
   Provider,
+  Settings,
+  SettingsView,
 } from '../../shared/types';
 
 /** Fires "changes" (detail = projectId) when files in a watched project changed. */
@@ -72,6 +74,10 @@ export const api = {
   handOff: (tabId: string, prompt: string) => call('POST', `/api/tabs/${tabId}/handoff`, { prompt }),
   bringBack: (id: string) => call<{ tabId: string | null; conflict: boolean; branch: string }>('POST', '/api/handoffs/return', { id }),
   setRemote: (enabled: boolean) => call('POST', '/api/remote', { enabled }),
+  settings: () => call<SettingsView>('GET', '/api/settings'),
+  saveSettings: (patch: Partial<Settings> & { recheck?: boolean }) => call<SettingsView>('POST', '/api/settings', patch),
+  checkUpdate: () => call<SettingsView>('POST', '/api/updates/check'),
+  installUpdate: () => call<SettingsView>('POST', '/api/updates/install'),
   setProjectIcon: (id: string, file: File) => putImage(`/api/projects/${id}/icon`, file),
   clearProjectIcon: (id: string) => call('DELETE', `/api/projects/${id}/icon`),
   setGroupIcon: (name: string, file: File) => putImage(`/api/groups/icon?name=${encodeURIComponent(name)}`, file),

@@ -1,18 +1,63 @@
 # Otterdeck
 
-Ein Zuhause für deine Claude-Code-Sitzungen unter Windows. Projekte links, Claude und Shells in Tabs, und du siehst auf einen Blick, wo Claude arbeitet, wo es auf dich wartet und wo es fertig ist.
+Ein Zuhause für deine Claude-Code-Sitzungen, unter Windows und Linux. Projekte links, Claude und Shells in Tabs, und du siehst auf einen Blick, wo Claude arbeitet, wo es auf dich wartet und wo es fertig ist.
+
+## Installieren
+
+Windows (PowerShell, ohne Adminrechte):
+
+```
+irm https://raw.githubusercontent.com/trpwrmusic/otterdeck/master/install.ps1 | iex
+```
+
+Linux (läuft als systemd-Benutzerdienst, ohne root):
+
+```
+curl -fsSL https://raw.githubusercontent.com/trpwrmusic/otterdeck/master/install.sh | bash
+```
+
+Der Installer bringt ein eigenes Node.js mit und legt alles in einen Ordner (`%LOCALAPPDATA%\Programs\Otterdeck` bzw. `~/.local/lib/otterdeck`): `node`, `versions\<version>` und `current` (die Version, die startet). Unter Windows kommen ein Startmenü-Eintrag und der Befehl `otter` dazu. Nochmal ausführen aktualisiert. Beim ersten Start führt eine Einrichtung durch Rolle, Claude Code und Zugriff von anderen Geräten.
+
+Optionen als Umgebungsvariablen vor dem Aufruf: `OTTER_VERSION`, `OTTER_INSTALL_DIR`, `OTTER_BUNDLE` (lokales Paket), unter Linux `OTTER_ROLE=server|desktop` (Standard: Server, wenn kein Desktop läuft).
 
 ## Starten
 
-- **Startmenü:** „Otterdeck“ (einmalig anlegen mit `powershell -ExecutionPolicy Bypass -File bin\install-shortcut.ps1`)
-- **Terminal:** `npm start` (oder `node bin/otter.mjs`), beenden mit `node bin/otter.mjs stop`
+- **Startmenü:** „Otterdeck“
+- **Terminal:** `otter` öffnet, `otter stop` beendet alles, `otter status`, `otter restart`, `otter background` (nur der Server, ohne Fenster)
 
 Der Server läuft unsichtbar im Hintergrund auf `http://127.0.0.1:4747`, das Fenster ist ein Edge-App-Fenster. Fenster schließen beendet keine Sitzung; erst `otter stop` beendet alles. Beim nächsten Start setzen die Claude-Tabs ihr Gespräch fort.
+
+## Einstellungen
+
+In der Seitenleiste unter **Einstellungen**, gespeichert in `<Datenordner>/settings.json` (`%APPDATA%\Otterdeck` bzw. `~/.local/share/otterdeck`):
+
+- **Rolle:** Arbeitsplatz (mit Fenster) oder Server (ohne Fenster, über Tailscale geöffnet, Claude meldet sich mit einem langlebigen Token an)
+- **Andere Geräte:** Zugang über `tailscale serve`, nur im eigenen Tailnet und nur für das eigene Tailscale-Konto
+- **Claude Code:** Programm, zusätzliche Startargumente, gemeinsames Gedächtnis aller Projekte
+- **Updates:** Version, nach Updates suchen, mit einem Klick aktualisieren
+- **Erweitert:** Shell, Antigravity, Tailscale-Socket und -Proxy (Userspace), NOLA, Datenordner
+
+Umgebungsvariablen gehen weiter vor (`OTTER_SERVER`, `OTTER_PORT`, `OTTER_SERVE_PORT`, `OTTER_TAILSCALE`, `OTTER_TAILSCALE_SOCKET`, `OTTER_TAILNET_PROXY`, `OTTER_CLAUDE`, `OTTER_CLAUDE_ARGS`, `OTTER_SHELL`, `OTTER_AGY`, `OTTER_TASK_DIR`, `OTTER_NOLA_*`, `OTTER_NO_WINDOW`); die Einstellungsseite zeigt solche Felder als festgelegt. Was erst nach einem Neustart gilt, sagt die Seite selbst.
+
+## Veröffentlichen
+
+Ein Tag baut auf GitHub ein Paket pro System (`otterdeck-win-x64.tar.gz`, `otterdeck-linux-x64.tar.gz`) und legt ein Release an (`.github/workflows/release.yml`). Die Tag-Nachricht wird zu den Versionshinweisen in den Einstellungen.
+
+```
+# Version in package.json erhöhen, committen, dann:
+git tag -a v0.3.0 -m "Was neu ist"
+git push origin v0.3.0
+```
+
+Installierte Otterdecks suchen alle paar Stunden nach einem neuen Release. „Jetzt aktualisieren“ lädt das Paket, entpackt es neben die laufende Version, stellt `current` um und startet neu, sobald kein Claude mehr arbeitet. Die vorige Version bleibt liegen; zurück geht es, indem man ihren Namen in `current` schreibt. Lokal bauen: `npm run build && node bin/pack.mjs`.
+
+Ein Git-Checkout (Entwicklung) aktualisiert sich nicht selbst: `git pull`, `npm run build`, dann meldet Otterdeck „Neue Version bereit“.
 
 ## Entwickeln
 
 ```
 npm install
+npm start          # aus dem Checkout starten (Startmenü-Eintrag dafür: bin\install-shortcut.ps1)
 npm run dev        # Server mit Neustart bei Änderungen + Vite auf http://127.0.0.1:5173
 npm run build      # Oberfläche nach dist/web
 npm run typecheck

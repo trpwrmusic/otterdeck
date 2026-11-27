@@ -245,6 +245,10 @@ export interface AppState {
   version: string;
   /** available: newer code on disk · pending: restart waits for Claude to finish */
   update: { available: boolean; pending: boolean };
+  /** The first-start setup still has to be shown. */
+  setup: boolean;
+  /** A newer release: found (latest) or downloaded and waiting for the restart (ready). */
+  release: { latest: string | null; ready: string | null } | null;
 }
 
 export interface Suggestion {
@@ -395,3 +399,63 @@ export type TermServerMsg =
   | { t: 'snapshot'; d: string }
   | { t: 'out'; d: string }
   | { t: 'exit'; code: number | null };
+
+// ---------- settings ----------
+
+export interface Settings {
+  /** The first-start setup was finished (or skipped). */
+  setupDone: boolean;
+  /** desktop: with a window, on your own computer · server: no window, reached over Tailscale */
+  role: 'desktop' | 'server';
+  port: number;
+  openWindow: boolean;
+  /** Start with Windows (a shortcut in the Startup folder). */
+  autostart: boolean;
+  /** HTTPS port of the tailnet address; 0 = automatic (443, on a server 4747). */
+  servePort: number;
+  /** Empty = found automatically. */
+  tailscaleCli: string;
+  tailscaleSocket: string;
+  tailnetProxy: string;
+  claudeBin: string;
+  claudeArgs: string;
+  shellBin: string;
+  agyBin: string;
+  /** Every project's Claude memory is linked to the one of the home folder. */
+  sharedMemory: boolean;
+  taskDir: string;
+  nolaEnabled: boolean;
+  nolaHelper: string;
+  nolaProjectsBoard: number;
+  nolaTodoBoards: string;
+  /** Look for a new release now and then. */
+  updateCheck: boolean;
+}
+export type SettingsKey = keyof Settings;
+
+export interface UpdateView {
+  /** release: installed from a release, updates itself · git: a checkout (git pull) */
+  install: 'release' | 'git' | 'other';
+  version: string;
+  latest: string | null;
+  checkedAt: number | null;
+  /** Release notes of the newer version. */
+  notes: string | null;
+  busy: 'checking' | 'downloading' | 'installing' | null;
+  /** A newer version is installed and starts with the next restart. */
+  ready: string | null;
+  error: string | null;
+}
+
+export interface SettingsView {
+  values: Settings;
+  /** Fixed by an environment variable (name), not editable here. */
+  fixed: Partial<Record<SettingsKey, string>>;
+  /** Saved, but only active after a restart. */
+  restart: SettingsKey[];
+  /** What "automatic" found, to show next to empty fields. */
+  found: { claude: string | null; claudeVersion: string | null; shell: string; tailscale: string | null; agy: string | null; nolaHelper: string; taskDir: string };
+  platform: string;
+  dataDir: string;
+  update: UpdateView;
+}

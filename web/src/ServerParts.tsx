@@ -26,7 +26,7 @@ const STATUS: Record<string, string> = {
 // ---------- side panel card: connect a server ----------
 
 export function ServerCard({ server, projectId, onActivate }: { server: ServerView | null; projectId: string; onActivate: (tabId: string) => void }) {
-  const [url, setUrl] = useState('https://mc-panel.tailabc123.ts.net:4747');
+  const [url, setUrl] = useState('');
   const [unfolded, setUnfolded] = usePersisted('otter.card.server', false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +48,8 @@ export function ServerCard({ server, projectId, onActivate }: { server: ServerVi
     body = (
       <>
         <div className="usage-empty">Aufgaben an Claude auf einem Server abgeben und den Laptop zuklappen.</div>
-        <input className="server-url" value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
-        <button className="copy-btn primary remote-on" disabled={busy} onClick={() => run(() => api.setServer(url))}>
+        <input className="server-url" value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} placeholder="https://server.dein-tailnet.ts.net:4747" />
+        <button className="copy-btn primary remote-on" disabled={busy || !url.trim()} onClick={() => run(() => api.setServer(url.trim()))}>
           {busy ? 'Verbinde …' : 'Server eintragen'}
         </button>
       </>

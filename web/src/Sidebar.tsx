@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { ArrowUpRight, BellRing, ChevronRight, Laptop, MessageCircle, MessagesSquare, Server, Pin, Plus, RefreshCw, Search } from 'lucide-react';
+import { ArrowUpCircle, ArrowUpRight, BellRing, ChevronRight, Laptop, MessageCircle, MessagesSquare, Server, Settings, Pin, Plus, RefreshCw, Search } from 'lucide-react';
 import type { AppState, Chat, ProjectView, TabView } from '../../shared/types';
 import { api, attentionOf, pickImage, usePersisted } from './api';
 import { LaptopSection, ServerTasks } from './ServerParts';
@@ -104,9 +104,10 @@ interface Props {
   state: AppState;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  view: 'project' | 'add' | 'chats';
+  view: 'project' | 'add' | 'chats' | 'settings';
   onAdd: () => void;
   onChats: () => void;
+  onSettings: () => void;
   /** A chat card is being dragged; project rows become drop targets. */
   dragging: boolean;
   onDropChat: (projectId: string, chat: Chat) => void;
@@ -120,7 +121,7 @@ interface Props {
 }
 
 export function Sidebar(props: Props) {
-  const { state, selectedId, onSelect, view, onAdd, onChats, dragging, onDropChat, notifyPermission, onEnableNotifications, onJump, onPalette } = props;
+  const { state, selectedId, onSelect, view, onAdd, onChats, onSettings, dragging, onDropChat, notifyPermission, onEnableNotifications, onJump, onPalette } = props;
   const waiting = state.tabs.filter((t) => t.status === 'waiting').length;
   const freeProject = state.projects.find((p) => p.free) ?? null;
   const freeAttention = freeProject ? attentionOf(state.tabs.filter((t) => t.projectId === freeProject.id)) : null;
@@ -434,6 +435,9 @@ export function Sidebar(props: Props) {
             <ArrowUpRight size={13} className="nav-link-go" />
           </a>
         )}
+        <button className={`nav-item${view === 'settings' ? ' on' : ''}`} onClick={onSettings}>
+          <Settings size={16} /> Einstellungen
+        </button>
       </div>
       <ServerTasks state={state} onOpened={(pid, tid) => props.onOpenTab?.(pid, tid)} />
 
@@ -496,6 +500,17 @@ export function Sidebar(props: Props) {
             </span>
           </button>
         ))}
+
+      {state.release && !state.update.available && (
+        // A new release (installed Otterdeck): the settings page downloads it.
+        <button className="notify-card update" onClick={onSettings}>
+          <ArrowUpCircle size={16} />
+          <span>
+            <strong>{state.release.ready ? `Version ${state.release.ready} bereit` : `Version ${state.release.latest} ist da`}</strong>
+            <span>{state.release.ready ? 'Startet, sobald kein Claude arbeitet' : 'In den Einstellungen aktualisieren'}</span>
+          </span>
+        </button>
+      )}
 
       {notifyPermission === 'default' && state.projects.length > 0 && (
         <button className="notify-card" onClick={onEnableNotifications}>
