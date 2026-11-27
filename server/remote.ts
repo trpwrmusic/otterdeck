@@ -22,7 +22,7 @@ export const SERVE_PORT = SETTINGS.servePort || (SERVER_MODE ? 4747 : 443);
 interface Info {
   installed: boolean;
   running: boolean;
-  /** e.g. samuel.tailabc123.ts.net */
+  /** e.g. laptop.tailabc123.ts.net */
   host: string | null;
   /** Login of this machine's owner; only they may use the remote page. */
   owner: string | null;
